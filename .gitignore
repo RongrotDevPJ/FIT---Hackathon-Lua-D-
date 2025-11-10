@@ -1,0 +1,59 @@
+# ==========================
+# 🌱 General
+# ==========================
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# ==========================
+# 🧠 Firebase & Functions
+# ==========================
+# ถ้า Firebase functions อยู่ใน backend/functions/
+
+backend/functions/node_modules/
+backend/functions/lib/
+backend/functions/.runtimeconfig.json
+
+# ==========================
+# 🧩 Frontend (เช่น React / Vue / Flutter)
+# ==========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.firebase/
+*.log
+
+# Flutter 
+flutter_export_environment.sh
+*.flutter-plugins
+*.flutter-plugins-dependencies
+.dart_tool/
+build/
+.pub/
+*.lock
+
+# ==========================
+# ⚙️ System & Editor
+# ==========================
+
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# ==========================
+# 🧾 Logs
+# ==========================
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log
+firebase-debug.*
