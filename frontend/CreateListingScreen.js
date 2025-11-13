@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  TextInput, 
-  ScrollView,
-  Platform,
-  Alert 
+  StyleSheet, Text, View, TouchableOpacity, 
+  TextInput, ScrollView, Platform, Alert 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 
@@ -25,9 +19,7 @@ export default function CreateListingScreen({ navigation }) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (ชื่อ, พันธุ์, เกรด, น้ำหนัก, ราคา, วันที่ส่งมอบ) ให้ครบถ้วน');
       return;
     }
-    
     console.log('Submitting:', { productName, productVariety, grade, weight, price, deliveryDate, details });
-    
     Alert.alert(
         'ประกาศขายสำเร็จ', 
         'ประกาศของคุณจะถูกส่งไปยังโรงงานผู้ซื้อแล้ว',
@@ -41,22 +33,12 @@ export default function CreateListingScreen({ navigation }) {
         
         <Text style={styles.label}>ชื่อผลผลิต (เช่น ลำไย)</Text>
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="ชื่อสินค้าที่ต้องการขาย"
-            onChangeText={setProductName}
-            value={productName}
-          />
+          <TextInput style={styles.input} placeholder="ชื่อสินค้าที่ต้องการขาย" onChangeText={setProductName} value={productName} />
         </View>
 
         <Text style={styles.label}>พันธุ์ที่ปลูก</Text>
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="เช่น อีดอ, สีชมพู, เบี้ยวเขียว"
-            onChangeText={setProductVariety}
-            value={productVariety}
-          />
+          <TextInput style={styles.input} placeholder="เช่น อีดอ, สีชมพู, เบี้ยวเขียว" onChangeText={setProductVariety} value={productVariety} />
         </View>
 
         <Text style={styles.label}>เลือกเกรดลำไย</Text>
@@ -89,36 +71,19 @@ export default function CreateListingScreen({ navigation }) {
         
         <Text style={styles.label}>น้ำหนักที่เสนอขาย (กก.)</Text>
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="จำนวนเป็นกิโลกรัม"
-            keyboardType="numeric"
-            onChangeText={setWeight}
-            value={weight}
-          />
+          <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
         
         <Text style={styles.label}>ราคาที่ต้องการขาย (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="ราคาต่อกิโลกรัม"
-            keyboardType="numeric"
-            onChangeText={setPrice}
-            value={price}
-          />
+          <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
         
         <Text style={styles.label}>วันที่ต้องการให้รับซื้อ/วันที่คาดว่าจะเก็บเกี่ยว</Text>
         <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="เช่น 15/12/2568 หรือ ช่วงกลางเดือนธันวาคม"
-            onChangeText={setDeliveryDate}
-            value={deliveryDate}
-          />
+          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ช่วงกลางเดือนธันวาคม" onChangeText={setDeliveryDate} value={deliveryDate} />
         </View>
 
         <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
@@ -132,17 +97,12 @@ export default function CreateListingScreen({ navigation }) {
             numberOfLines={4}
           />
         </View>
-
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.submitButton}
-          onPress={handleSubmit}
-        >
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
           <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศขาย</Text>
         </TouchableOpacity>
-        {/* (ปุ่มยกเลิกถูกเอาออกไป เพราะมันอยู่ใน Modal Header แล้ว) */}
       </View>
     </SafeAreaView>
   );
@@ -150,14 +110,8 @@ export default function CreateListingScreen({ navigation }) {
 
 // --- [ นี่คือ StyleSheet "ฉบับเต็ม" ที่ถูกต้อง ] ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FAFAFA', 
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-  },
+  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
+  container: { flex: 1, padding: 20 },
   label: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -201,18 +155,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 10,
   },
-  gradeB: { backgroundColor: '#FFA000' }, // (เปลี่ยนสีตาม Mockup)
-  gradeA: { backgroundColor: '#0D6EfD' }, 
-  gradeAA: { backgroundColor: '#1E9E4F' }, 
-  gradeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  gradeSubText: {
-    fontSize: 12,
-    color: '#888',
-  },
+  gradeB: { backgroundColor: '#FFA000' }, // (B)
+  gradeA: { backgroundColor: '#0D6EfD' }, // (A)
+  gradeAA: { backgroundColor: '#1E9E4F' }, // (AA)
+  gradeText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
+  gradeSubText: { fontSize: 12, color: '#888' },
   inputContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -220,7 +167,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 5, // (เพิ่ม)
+    marginTop: 5, 
   },
   input: {
     flex: 1,
@@ -229,11 +176,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  inputSuffix: {
-    fontSize: 16,
-    color: '#888',
-    paddingHorizontal: 15,
-  },
+  inputSuffix: { fontSize: 16, color: '#888', paddingHorizontal: 15 },
   inputMultiline: {
     height: 100,
     textAlignVertical: 'top', 
@@ -252,9 +195,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  submitButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
+  submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 });

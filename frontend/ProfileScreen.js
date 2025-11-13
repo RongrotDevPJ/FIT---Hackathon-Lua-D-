@@ -1,22 +1,15 @@
 import React from 'react';
 import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image, 
-  Alert 
+  StyleSheet, Text, View, ScrollView, 
+  TouchableOpacity, Image, Alert 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// import { Ionicons } from '@expo/vector-icons';
 
 export default function ProfileScreen({ navigation }) {
-
   const userName = "สมชาย มั่นคง";
-  const userType = "เกษตรกร/ผู้ขาย";
+  const userType = "เกษตรกร/ผู้ขาย"; // (อันนี้เราต้องแก้ Logic ทีหลังว่ามาจาก User Type ไหน)
 
-  // --- 2. ฟังก์ชัน "ดีดตัว" กลับประตูหน้า (ตัวจริง!) ---
+  // --- ฟังก์ชัน "ดีดตัว" (ตัวจริง!) ---
   const handleLogout = () => {
     Alert.alert(
       "ออกจากระบบ", 
@@ -26,7 +19,6 @@ export default function ProfileScreen({ navigation }) {
         { 
           text: "ตกลง", 
           onPress: () => {
-            // --- นี่คือโค้ด "ดีดตัว" กลับ (Login) ---
             navigation.reset({
               index: 0,
               routes: [{ name: 'Login' }], 
@@ -37,12 +29,10 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // --- 3. JSX ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         <View style={styles.profileHeader}>
-          {/* (สามารถเพิ่ม Avatar ได้ตรงนี้) */}
           <Text style={styles.userName}>{userName}</Text>
           <Text style={styles.userType}>{userType}</Text>
         </View>
@@ -60,7 +50,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.logoutContainer}>
           <TouchableOpacity 
             style={styles.logoutButton}
-            onPress={handleLogout} // <-- เรียก "ตัวจริง" แล้ว
+            onPress={handleLogout} 
           >
             <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
           </TouchableOpacity>
@@ -70,7 +60,7 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// --- 4. StyleSheet (เหมือนเดิม) ---
+// --- Styles (ฉบับเต็ม) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   container: { flex: 1 },
@@ -81,20 +71,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
-  userName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  userType: {
-    fontSize: 16,
-    color: '#1E9E4F', 
-    fontWeight: 'bold',
-  },
-  menuContainer: {
-    marginTop: 20,
-    backgroundColor: '#FFFFFF',
-  },
+  userName: { fontSize: 22, fontWeight: 'bold', color: '#333' },
+  userType: { fontSize: 16, color: '#1E9E4F', fontWeight: 'bold' },
+  menuContainer: { marginTop: 20, backgroundColor: '#FFFFFF' },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -103,15 +82,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  menuText: {
-    flex: 1, 
-    fontSize: 16,
-    color: '#333',
-  },
-  logoutContainer: {
-    padding: 20,
-    marginTop: 20,
-  },
+  menuText: { flex: 1, fontSize: 16, color: '#333' },
+  logoutContainer: { padding: 20, marginTop: 20 },
   logoutButton: {
     backgroundColor: '#FFCDD2', 
     borderRadius: 8,
