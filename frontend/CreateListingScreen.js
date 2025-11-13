@@ -12,24 +12,53 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 
 export default function CreateListingScreen({ navigation }) {
+  const [productName, setProductName] = useState(''); 
+  const [productVariety, setProductVariety] = useState(''); 
   const [grade, setGrade] = useState(''); 
   const [weight, setWeight] = useState('');
   const [price, setPrice] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
   const handleSubmit = () => {
-    if (!grade || !weight || !price) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอก เกรด, น้ำหนัก, และราคา ให้ครบถ้วน');
+    if (!productName || !productVariety || !grade || !weight || !price || !deliveryDate) {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (ชื่อ, พันธุ์, เกรด, น้ำหนัก, ราคา, วันที่ส่งมอบ) ให้ครบถ้วน');
       return;
     }
-    console.log('Submitting:', { grade, weight, price, details });
-    navigation.goBack(); 
+    
+    console.log('Submitting:', { productName, productVariety, grade, weight, price, deliveryDate, details });
+    
+    Alert.alert(
+        'ประกาศขายสำเร็จ', 
+        'ประกาศของคุณจะถูกส่งไปยังโรงงานผู้ซื้อแล้ว',
+        [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         
+        <Text style={styles.label}>ชื่อผลผลิต (เช่น ลำไย)</Text>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="ชื่อสินค้าที่ต้องการขาย"
+            onChangeText={setProductName}
+            value={productName}
+          />
+        </View>
+
+        <Text style={styles.label}>พันธุ์ที่ปลูก</Text>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="เช่น อีดอ, สีชมพู, เบี้ยวเขียว"
+            onChangeText={setProductVariety}
+            value={productVariety}
+          />
+        </View>
+
         <Text style={styles.label}>เลือกเกรดลำไย</Text>
         <View style={styles.gradeContainer}>
           <TouchableOpacity
@@ -38,85 +67,97 @@ export default function CreateListingScreen({ navigation }) {
           >
             <Text style={[styles.gradeCircle, styles.gradeB]}>B</Text>
             <Text style={styles.gradeText}>เกรด B</Text>
-            <Text style={styles.gradeSubText}>คุณภาพดีเยี่ยม</Text>
+            <Text style={styles.gradeSubText}>มาตฐานทั่วไป</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]}
-            onPress={() => setGrade('C')}
+            style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]}
+            onPress={() => setGrade('A')}
           >
-            <Text style={[styles.gradeCircle, styles.gradeC]}>C</Text>
-            <Text style={styles.gradeText}>เกรด C</Text>
+            <Text style={[styles.gradeCircle, styles.gradeA]}>A</Text>
+            <Text style={styles.gradeText}>เกรด A</Text>
             <Text style={styles.gradeSubText}>คุณภาพดี</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]}
-            onPress={() => setGrade('CC')}
+            style={[styles.gradeButton, grade === 'AA' && styles.gradeButtonActive]}
+            onPress={() => setGrade('AA')}
           >
-            <Text style={[styles.gradeCircle, styles.gradeCC]}>CC</Text>
-            <Text style={styles.gradeText}>เกรด CC</Text>
-            <Text style={styles.gradeSubText}>คุณภาพปานกลาง</Text>
+            <Text style={[styles.gradeCircle, styles.gradeAA]}>AA</Text>
+            <Text style={styles.gradeText}>เกรด AA</Text>
+            <Text style={styles.gradeSubText}>คุณภาพพรีเมี่ยม</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={styles.label}>น้ำหนัก (กิโลกรัม)</Text>
+        
+        <Text style={styles.label}>น้ำหนักที่เสนอขาย (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="ระบุน้ำหนัก"
+            placeholder="จำนวนเป็นกิโลกรัม"
             keyboardType="numeric"
-            value={weight}
             onChangeText={setWeight}
+            value={weight}
           />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
-        <Text style={styles.exampleText}>ตัวอย่าง: 500 กก.</Text>
-
-        <Text style={styles.label}>ราคาที่ต้องการขาย</Text>
+        
+        <Text style={styles.label}>ราคาที่ต้องการขาย (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="ระบุราคา"
+            placeholder="ราคาต่อกิโลกรัม"
             keyboardType="numeric"
-            value={price}
             onChangeText={setPrice}
+            value={price}
           />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
-        <Text style={styles.exampleText}>ตัวอย่าง: 45 บาท/กก.</Text>
-
-        <Text style={styles.label}>รายละเอียดเพิ่มเติม (ถ้ามี)</Text>
-        <TextInput
-          style={[styles.input, styles.inputMultiline]}
-          placeholder="เช่น สภาพลำไย, วิธีการเก็บเกี่ยว, สถานที่จัดส่ง..."
-          multiline={true}
-          numberOfLines={4}
-          value={details}
-          onChangeText={setDetails}
-        />
         
+        <Text style={styles.label}>วันที่ต้องการให้รับซื้อ/วันที่คาดว่าจะเก็บเกี่ยว</Text>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="เช่น 15/12/2568 หรือ ช่วงกลางเดือนธันวาคม"
+            onChangeText={setDeliveryDate}
+            value={deliveryDate}
+          />
+        </View>
+
+        <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่ผู้ซื้อควรทราบ (เช่น สวนปลอดสาร)"
+            onChangeText={setDetails}
+            value={details}
+            multiline={true}
+            numberOfLines={4}
+          />
+        </View>
+
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity 
           style={styles.submitButton}
-          onPress={handleSubmit} 
+          onPress={handleSubmit}
         >
-          <Text style={styles.submitButtonText}>ลงประกาศขาย</Text>
+          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศขาย</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.cancelButton}
-          onPress={() => navigation.goBack()} 
-        >
-          <Text style={styles.cancelButtonText}>ยกเลิก</Text>
-        </TouchableOpacity>
+        {/* (ปุ่มยกเลิกถูกเอาออกไป เพราะมันอยู่ใน Modal Header แล้ว) */}
       </View>
     </SafeAreaView>
   );
 }
 
+// --- [ นี่คือ StyleSheet "ฉบับเต็ม" ที่ถูกต้อง ] ---
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
-  container: { flex: 1, padding: 20 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FAFAFA', 
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+  },
   label: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -160,11 +201,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 10,
   },
-  gradeB: { backgroundColor: '#1E9E4F' }, 
-  gradeC: { backgroundColor: '#0D6EfD' }, 
-  gradeCC: { backgroundColor: '#FFA000' }, 
-  gradeText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  gradeSubText: { fontSize: 12, color: '#888' },
+  gradeB: { backgroundColor: '#FFA000' }, // (เปลี่ยนสีตาม Mockup)
+  gradeA: { backgroundColor: '#0D6EfD' }, 
+  gradeAA: { backgroundColor: '#1E9E4F' }, 
+  gradeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  gradeSubText: {
+    fontSize: 12,
+    color: '#888',
+  },
   inputContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -172,6 +220,7 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 5, // (เพิ่ม)
   },
   input: {
     flex: 1,
@@ -180,8 +229,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  inputSuffix: { fontSize: 16, color: '#888', paddingHorizontal: 15 },
-  exampleText: { fontSize: 12, color: '#888', marginTop: 5, marginLeft: 5 },
+  inputSuffix: {
+    fontSize: 16,
+    color: '#888',
+    paddingHorizontal: 15,
+  },
   inputMultiline: {
     height: 100,
     textAlignVertical: 'top', 
@@ -193,24 +245,16 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 30 : 20, 
     borderTopWidth: 1,
     borderColor: '#E0E0E0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 10,
   },
   submitButton: {
     backgroundColor: '#1E9E4F',
     paddingVertical: 15,
     borderRadius: 8,
     alignItems: 'center',
-    shadowColor: '#1E9E4F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
   },
-  submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
-  cancelButton: { paddingVertical: 10, alignItems: 'center', marginTop: 5 },
-  cancelButtonText: { fontSize: 16, color: '#888' },
+  submitButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
 });

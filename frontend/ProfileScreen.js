@@ -16,7 +16,7 @@ export default function ProfileScreen({ navigation }) {
   const userName = "สมชาย มั่นคง";
   const userType = "เกษตรกร/ผู้ขาย";
 
-  // --- นี่คือฟังก์ชัน "ตัวจริง" ที่มีปุ่มดีดตัว ---
+  // --- 2. ฟังก์ชัน "ดีดตัว" กลับประตูหน้า (ตัวจริง!) ---
   const handleLogout = () => {
     Alert.alert(
       "ออกจากระบบ", 
@@ -26,10 +26,10 @@ export default function ProfileScreen({ navigation }) {
         { 
           text: "ตกลง", 
           onPress: () => {
-            // --- โค้ด "ดีดตัว" อยู่ตรงนี้! ---
+            // --- นี่คือโค้ด "ดีดตัว" กลับ (Login) ---
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Login' }], // สั่งให้มันรีเซ็ตแล้วไปที่ 'Login'
+              routes: [{ name: 'Login' }], 
             });
           }
         }
@@ -37,16 +37,15 @@ export default function ProfileScreen({ navigation }) {
     );
   };
 
-  // (โค้ด JSX ที่เหลือ)
+  // --- 3. JSX ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
-        
         <View style={styles.profileHeader}>
+          {/* (สามารถเพิ่ม Avatar ได้ตรงนี้) */}
           <Text style={styles.userName}>{userName}</Text>
           <Text style={styles.userType}>{userType}</Text>
         </View>
-
         <View style={styles.menuContainer}>
           <TouchableOpacity style={styles.menuItem}>
             <Text style={styles.menuText}>แก้ไขข้อมูลส่วนตัว</Text>
@@ -58,43 +57,29 @@ export default function ProfileScreen({ navigation }) {
             <Text style={styles.menuText}>ศูนย์ช่วยเหลือ</Text>
           </TouchableOpacity>
         </View>
-
         <View style={styles.logoutContainer}>
           <TouchableOpacity 
             style={styles.logoutButton}
-            onPress={handleLogout} // <-- มันเรียกใช้ "ตัวจริง" แล้ว
+            onPress={handleLogout} // <-- เรียก "ตัวจริง" แล้ว
           >
             <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// (โค้ด Stylesheet ทั้งหมด)
+// --- 4. StyleSheet (เหมือนเดิม) ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F4F4',
-  },
-  container: {
-    flex: 1,
-  },
+  safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
+  container: { flex: 1 },
   profileHeader: {
     alignItems: 'center',
     paddingVertical: 30,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#E0E0E0',
-    marginBottom: 15,
   },
   userName: {
     fontSize: 22,
@@ -122,7 +107,6 @@ const styles = StyleSheet.create({
     flex: 1, 
     fontSize: 16,
     color: '#333',
-    // marginLeft: 15, 
   },
   logoutContainer: {
     padding: 20,
