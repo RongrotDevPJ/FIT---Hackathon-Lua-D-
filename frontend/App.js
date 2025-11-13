@@ -3,23 +3,28 @@ import { Platform, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons'; //
 
-// --- [ 1. Import ไอคอน (ถูกต้อง!) ] ---
-import { Ionicons } from '@expo/vector-icons'; 
-
-// --- Import หน้าจอ (เหมือนเดิม) ---
+// --- 1. Import ทุกหน้าจอ (รวมของใหม่!) ---
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
+
+// (บ้านเกษตรกร)
 import HomeScreen from './HomeScreen'; 
 import CreateListingScreen from './CreateListingScreen'; 
 import OffersScreen from './OffersScreen'; 
 import ProfileScreen from './ProfileScreen'; 
 
-// --- สร้าง "กล่อง" (เหมือนเดิม) ---
+// (บ้านผู้ซื้อ... ที่เราเพิ่งสร้าง)
+import MarketScreen from './MarketScreen'; 
+import MyBidsScreen from './MyBidsScreen'; 
+
+// --- 2. สร้าง "กล่อง" ---
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- 3. "บ้าน" ที่รวม 4 แท็บล่าง (ฉบับ "พอดี"!) ---
+// --- 3. "บ้านเกษตรกร" (MainAppTabs) ---
+// (โค้ดนี้คือฉบับ "พอดี" ที่เราแก้กันล่าสุด)
 function MainAppTabs() {
   return (
     <Tab.Navigator
@@ -28,22 +33,16 @@ function MainAppTabs() {
         headerTintColor: '#FFFFFF', 
         tabBarActiveTintColor: '#1E9E4F', 
         tabBarInactiveTintColor: '#888', 
-        
-        // --- [ 1. แก้ไข Label Style ] ---
         tabBarLabelStyle: {
-          paddingBottom: Platform.OS === 'android' ? 8 : 0, // <-- ดันชื่อขึ้น (จาก 5 เป็น 8)
+          paddingBottom: Platform.OS === 'android' ? 8 : 0,
           fontSize: 12,
         },
-        
-        // --- [ 2. แก้ไข Bar Style ] ---
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 90 : 75, // <-- "ความสูงที่พอดี" (คงไว้ 75)
-          paddingBottom: Platform.OS === 'android' ? 5 : 0, // <-- ดันไอคอนขึ้น (จาก 10 เหลือ 5)
+          height: Platform.OS === 'ios' ? 90 : 75, 
+          paddingBottom: Platform.OS === 'android' ? 5 : 0, 
         }
-        // ---------------------------------------------
       }}
     >
-      {/* แท็บที่ 1: หน้าหลัก */}
       <Tab.Screen 
         name="HomeTab" 
         component={HomeScreen} 
@@ -54,8 +53,6 @@ function MainAppTabs() {
           ),
         }} 
       />
-      
-      {/* แท็บที่ 2: ข้อเสนอ */}
       <Tab.Screen 
         name="OffersTab" 
         component={OffersScreen} 
@@ -66,11 +63,9 @@ function MainAppTabs() {
           ),
         }} 
       />
-      
-      {/* แท็บที่ 3: ลงประกาศ (ปุ่มบวก) */}
       <Tab.Screen
         name="PostTab"
-        component={CreateListingScreen} // *หลอก*
+        component={CreateListingScreen}
         options={{ 
           title: 'ลงประกาศ',
           tabBarIcon: ({ color, size }) => (
@@ -84,8 +79,6 @@ function MainAppTabs() {
           },
         })}
       />
-      
-      {/* แท็บที่ 4: โปรไฟล์ */}
       <Tab.Screen 
         name="ProfileTab" 
         component={ProfileScreen} 
@@ -100,13 +93,67 @@ function MainAppTabs() {
   );
 }
 
-// --- 4. นี่คือ App หลัก (ฉบับ "คืนค่า" ที่ถูกต้อง!) ---
+// --- 4. [ ใหม่! ] "บ้านผู้ซื้อ" (BuyerAppTabs) ---
+function BuyerAppTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#1E9E4F' }, 
+        headerTintColor: '#FFFFFF', 
+        tabBarActiveTintColor: '#1E9E4F', 
+        tabBarInactiveTintColor: '#888', 
+        tabBarLabelStyle: {
+          paddingBottom: Platform.OS === 'android' ? 8 : 0,
+          fontSize: 12,
+        },
+        tabBarStyle: {
+          height: Platform.OS === 'ios' ? 90 : 75, 
+          paddingBottom: Platform.OS === 'android' ? 5 : 0, 
+        }
+      }}
+    >
+      <Tab.Screen 
+        name="MarketTab" 
+        component={MarketScreen} 
+        options={{ 
+          title: 'ตลาดลำไย',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="storefront-outline" color={color} size={size} />
+          ),
+        }} 
+      />
+      <Tab.Screen 
+        name="MyBidsTab" 
+        component={MyBidsScreen} 
+        options={{ 
+          title: 'ข้อเสนอของฉัน',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbox-ellipses-outline" color={color} size={size} />
+          ),
+        }} 
+      />
+      <Tab.Screen 
+        name="ProfileTab" 
+        component={ProfileScreen} 
+        options={{ 
+          title: 'โปรไฟล์',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={color} size={size} />
+          ),
+        }} 
+      />
+    </Tab.Navigator>
+  );
+}
+
+
+// --- 5. App หลัก (ที่รู้จัก "บ้าน" 2 หลัง!) ---
 export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator>
         
-        {/* === กลุ่มที่ 1: "Login" ต้องอยู่บนสุด! === */}
+        {/* === กลุ่มที่ 1: "ก่อน" ล็อกอิน === */}
         <Stack.Screen 
           name="Login" 
           component={LoginScreen} 
@@ -123,14 +170,19 @@ export default function App() {
           }}
         />
 
-        {/* === กลุ่มที่ 2: "บ้าน" หลังล็อกอิน === */}
+        {/* === กลุ่มที่ 2: "หลัง" ล็อกอิน (บ้าน 2 หลัง) === */}
         <Stack.Screen 
-          name="MainApp"
+          name="MainApp" // บ้านเกษตรกร
           component={MainAppTabs} 
           options={{ headerShown: false }} 
         />
+        <Stack.Screen 
+          name="BuyerApp" // บ้านผู้ซื้อ
+          component={BuyerAppTabs} 
+          options={{ headerShown: false }} 
+        />
 
-        {/* === กลุ่มที่ 3: หน้า "เด้ง" ทับแท็บ === */}
+        {/* === กลุ่มที่ 3: หน้า "เด้ง" ทับแท็บ (ของเกษตรกร) === */}
         <Stack.Screen 
           name="CreateListing" 
           component={CreateListingScreen}

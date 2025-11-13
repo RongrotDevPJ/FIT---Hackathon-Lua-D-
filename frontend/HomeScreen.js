@@ -1,11 +1,7 @@
 import React from 'react';
 import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  ScrollView, 
-  Image 
+  StyleSheet, Text, View, TouchableOpacity, 
+  ScrollView, Image 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { Ionicons } from '@expo/vector-icons'; //
@@ -19,10 +15,12 @@ export default function HomeScreen({ navigation }) {
     navigation.navigate('CreateListing'); //
   };
   const goToOffers = () => {
-    navigation.navigate('OffersTab'); // <-- แก้ให้ไปที่แท็บ 'OffersTab' (ตาม App.js)
+    // (แก้ให้มันกดไปที่ "แท็บ" แทน)
+    navigation.navigate('OffersTab'); 
   };
   const goToProfile = () => {
-    navigation.navigate('ProfileTab'); // <-- แก้ให้ไปที่แท็บ 'ProfileTab' (ตาม App.js)
+    // (แก้ให้มันกดไปที่ "แท็บ" แทน)
+    navigation.navigate('ProfileTab'); 
   };
 
   return (
@@ -50,7 +48,6 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.statLabel}>รายการทั้งหมด</Text>
             </View>
           </View>
-          
           <TouchableOpacity 
             style={[styles.statCard, {borderLeftColor: '#1E9E4F'}]}
             onPress={goToOffers} 
@@ -93,7 +90,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF', // พื้นหลังสีขาวตามดีไซน์ใหม่
+    backgroundColor: '#FFFFFF', 
   },
   container: {
     flex: 1,
@@ -109,18 +106,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
-  headerGreeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  headerTitle: {
-    fontSize: 16,
-    color: '#888',
-  },
-  profileButton: {
-    padding: 5,
-  },
+  headerGreeting: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  headerTitle: { fontSize: 16, color: '#888' },
+  profileButton: { padding: 5 },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -142,18 +130,9 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderLeftWidth: 5,
   },
-  statContent: {
-    marginLeft: 10,
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#555',
-  },
+  statContent: { marginLeft: 10 },
+  statNumber: { fontSize: 28, fontWeight: 'bold', color: '#333' },
+  statLabel: { fontSize: 14, color: '#555' },
   postButton: {
     backgroundColor: '#1E9E4F',
     borderRadius: 12,
@@ -183,19 +162,9 @@ const styles = StyleSheet.create({
     marginTop: 25,
     marginBottom: 10,
   },
-  listingTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  viewAll: {
-    fontSize: 14,
-    color: '#1E9E4F',
-    fontWeight: 'bold',
-  },
-  listingContainer: {
-    paddingHorizontal: 20,
-  },
+  listingTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  viewAll: { fontSize: 14, color: '#1E9E4F', fontWeight: 'bold' },
+  listingContainer: { paddingHorizontal: 20 },
   emptyListing: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -203,15 +172,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     borderRadius: 12,
   },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#888',
-    marginTop: 10,
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: '#AAA',
-    marginTop: 5,
-  },
+  emptyText: { fontSize: 16, fontWeight: 'bold', color: '#888', marginTop: 10 },
+  emptySubText: { fontSize: 14, color: '#AAA', marginTop: 5 },
 });
