@@ -6,29 +6,43 @@ import {
   Image, 
   TextInput, 
   TouchableOpacity, 
-  // --- SafeAreaView หายไปจากตรงนี้แล้ว ---
   StatusBar,
-  Platform
+  Platform,
+  Alert // <-- เพิ่ม Alert ไว้แจ้งเตือน
 } from 'react-native';
-
-// --- เราย้ายมันมา import ตรงนี้แทน ---
+// (ใช้ SafeAreaView จาก context ที่เราแก้แล้ว)
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- นี่คือ Component หลัก ---
 export default function LoginScreen({ navigation }) {
-  // (โค้ดที่เหลือเหมือนเดิมทุกประการ ไม่ต้องแก้)
-  
-  // --- 1. State สำหรับเก็บข้อมูล ---
-  const [userType, setUserType] = useState('farmer'); // 'farmer' หรือ 'buyer'
+  const [userType, setUserType] = useState('farmer'); 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
-  // --- 2. JSX (โครงสร้างหน้าจอ) ---
+  // --- 2. สร้างฟังก์ชัน handleLogin (อัปเกรดแล้ว!) ---
+  const handleLogin = () => {
+    // --- (นี่คือ Logic การ "ตรวจสอบ" แบบปลอมๆ) ---
+    // (ในอนาคต ตรงนี้คือที่ที่เราจะยิง Firebase Auth)
+    if (phone.trim() === '' || password.trim() === '') {
+      Alert.alert('เข้าสู่ระบบไม่สำเร็จ', 'กรุณากรอกเบอร์โทรศัพท์และรหัสผ่าน');
+      return;
+    }
+
+    // --- (สมมติว่าล็อกอินสำเร็จ) ---
+    console.log('Login Success:', { userType, phone });
+
+    // --- นี่คือโค้ด "ดีดตัว" ไปหน้า MainApp (ตามชื่อใน App.js ใหม่) ---
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainApp' }], // สั่งให้มันรีเซ็ตแล้วไปที่ 'MainApp'
+    });
+    // --------------------------------------------------------
+  };
+
+  // --- 3. JSX (โครงสร้างหน้าจอ) ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
       
-      {/* === ส่วนหัวสีเขียว === */}
       <View style={styles.header}>
         <Image 
           source={require('./logo/Logo.png')} 
@@ -38,13 +52,12 @@ export default function LoginScreen({ navigation }) {
         <Text style={styles.headerSubtitle}>แพลตฟอร์มซื้อขายลำไยออนไลน์</Text>
       </View>
 
-      {/* === การ์ดฟอร์มสีขาว === */}
       <View style={styles.card}>
         <Text style={styles.loginTitle}>เข้าสู่ระบบ</Text>
 
-        {/* --- ตัวสลับประเภทผู้ใช้ --- */}
         <Text style={styles.label}>คุณเป็น</Text>
         <View style={styles.userTypeContainer}>
+          {/* (ปุ่มสลับ User Type ... เหมือนเดิม) */}
           <TouchableOpacity
             style={[
               styles.userTypeButton, 
@@ -57,7 +70,6 @@ export default function LoginScreen({ navigation }) {
               userType === 'farmer' && styles.userTypeButtonTextActive
             ]}>เกษตรกร/ผู้ขาย</Text>
           </TouchableOpacity>
-          
           <TouchableOpacity
             style={[
               styles.userTypeButton, 
@@ -72,7 +84,6 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* --- ช่องกรอกข้อมูล --- */}
         <Text style={styles.label}>เบอร์โทรศัพท์</Text>
         <TextInput
           style={styles.input}
@@ -91,15 +102,15 @@ export default function LoginScreen({ navigation }) {
           onChangeText={setPassword}
         />
 
-        {/* --- ปุ่มเข้าสู่ระบบ --- */}
+        {/* --- ปุ่มเข้าสู่ระบบ (เชื่อมฟังก์ชันใหม่!) --- */}
         <TouchableOpacity 
           style={styles.loginButton}
-          onPress={() => console.log('Login Info:', { userType, phone, password })}
+          onPress={handleLogin} // <-- เปลี่ยนเป็น handleLogin แล้ว!
         >
           <Text style={styles.loginButtonText}>เข้าสู่ระบบ</Text>
         </TouchableOpacity>
 
-        {/* --- ลิงก์ลงทะเบียน --- */}
+        {/* --- ลิงก์ลงทะเบียน (เหมือนเดิม) --- */}
         <View style={styles.registerLinkContainer}>
           <Text style={styles.registerText}>ไม่มีบัญชี?</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Register')}>
@@ -112,9 +123,9 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-// --- 3. StyleSheet (สไตล์ทั้งหมด) ---
+// --- 4. StyleSheet (สไตล์ทั้งหมด) ---
+// (ใช้ Stylesheet เดิมจากไฟล์ LoginScreen.js ของคุณ)
 const styles = StyleSheet.create({
-  // (สไตล์ทั้งหมดเหมือนเดิมเป๊ะ)
   safeArea: {
     flex: 1,
     backgroundColor: '#F4F4F4',

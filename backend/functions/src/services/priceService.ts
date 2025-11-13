@@ -1,8 +1,8 @@
 import { db } from "../config/firestore";
-import * as admin from 'firebase-admin';
+import { Timestamp } from "firebase-admin/firestore";
 
-export type GradeType = 'AA' | 'A' | 'B' | 'C' | 'CC';
-export type PriceStatus = 'below_ref' | 'normal' | 'above_ref' | 'no_ref';
+export type GradeType = "AA" | "A" | "B" | "C" | "CC";
+export type PriceStatus = "below_ref" | "normal" | "above_ref" | "no_ref";
 
 export interface ReferencePrice {
   id: string;
@@ -12,7 +12,7 @@ export interface ReferencePrice {
   maxPrice: number;
   avgPrice: number;
   source: string;
-  updatedAt: admin.firestore.Timestamp;
+  updatedAt: Timestamp;   
 }
 
 export interface EvaluateResult {
