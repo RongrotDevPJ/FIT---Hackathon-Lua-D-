@@ -10,26 +10,16 @@ export default function LoginScreen({ navigation }) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
-  // --- ฟังก์ชัน "ทางแยก" (The Fork) ---
   const handleLogin = () => {
     if (phone.trim() === '' || password.trim() === '') {
       Alert.alert('เข้าสู่ระบบไม่สำเร็จ', 'กรุณากรอกเบอร์โทรศัพท์และรหัสผ่าน');
       return;
     }
-    
     console.log('Login Success:', { userType, phone });
-
-    // --- นี่คือ "ทางแยก" ---
     if (userType === 'farmer') {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainApp' }], 
-      });
+      navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
     } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'BuyerApp' }], 
-      });
+      navigation.reset({ index: 0, routes: [{ name: 'BuyerApp' }] });
     }
   };
 
@@ -91,11 +81,16 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-// --- Styles (ฉบับเต็ม) ---
+// --- Styles (โลโก้ 100x100) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   header: { backgroundColor: '#1E9E4F', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 20 : 60, paddingBottom: 40, paddingHorizontal: 20, alignItems: 'center', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  logo: { width: 80, height: 80, resizeMode: 'contain', marginBottom: 10 },
+  logo: { 
+    width: 100, // <-- [แก้แล้ว]
+    height: 100, // <-- [แก้แล้ว]
+    resizeMode: 'contain', 
+    marginBottom: 10 
+  },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' },
   headerSubtitle: { fontSize: 16, color: '#FFFFFF' },
   card: { backgroundColor: '#FFFFFF', marginHorizontal: 20, padding: 25, borderRadius: 15, marginTop: -30, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
