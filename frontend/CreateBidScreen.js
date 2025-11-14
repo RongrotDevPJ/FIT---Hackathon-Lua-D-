@@ -5,23 +5,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 
-export default function CreateListingScreen({ navigation }) {
-  // --- [ 1. State ที่ "ผ่าตัด" แล้ว ] ---
+export default function CreateBidScreen({ navigation }) {
+  // --- [ 1. State (เกือบเหมือนเดิม) ] ---
   const [grade, setGrade] = useState(''); // 2A, 1A, A, B, C, CC
   const [weight, setWeight] = useState('');
-  const [price, setPrice] = useState('');
+  const [price, setPrice] = useState(''); // (อันนี้คือ "ราคาที่เสนอ")
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
   const handleSubmit = () => {
+    // --- [ 2. Logic การตรวจสอบ (เหมือนเดิม) ] ---
     if (!grade || !weight || !price || !deliveryDate) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ส่งมอบ) ให้ครบถ้วน');
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
-    console.log('Submitting:', { grade, weight, price, deliveryDate, details });
+    
+    console.log('Submitting Bid:', { grade, weight, price, deliveryDate, details });
+    
+    // --- [ 3. เปลี่ยนข้อความ Alert ] ---
     Alert.alert(
-        'ประกาศขายสำเร็จ', 
-        'ประกาศของคุณจะถูกส่งไปยังโรงงานผู้ซื้อแล้ว',
+        'ประกาศรับซื้อสำเร็จ', 
+        'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
         [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
     );
   };
@@ -30,12 +34,9 @@ export default function CreateListingScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         
-        {/* === (ฟิลด์ "ชื่อผลผลิต" และ "พันธุ์" ถูกลบออกไปแล้ว) === */}
-
-        {/* --- [ 2. อัปเกรดเป็น 6 เกรด ] --- */}
-        <Text style={styles.label}>เลือกเกรดลำไย</Text>
+        {/* --- [ 4. เกรด (6 เกรด... เหมือนเดิมเป๊ะ) ] --- */}
+        <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
-          
           <TouchableOpacity
             style={[styles.gradeButton, grade === '2A' && styles.gradeButtonActive]}
             onPress={() => setGrade('2A')}
@@ -44,8 +45,6 @@ export default function CreateListingScreen({ navigation }) {
             <Text style={styles.gradeText}>เกรด 2A</Text>
             <Text style={styles.gradeSubText}>พรีเมี่ยม (AA)</Text>
           </TouchableOpacity>
-          
-          {/* --- [ 3. เปลี่ยน A1 เป็น 1A ] --- */}
           <TouchableOpacity
             style={[styles.gradeButton, grade === '1A' && styles.gradeButtonActive]}
             onPress={() => setGrade('1A')}
@@ -54,8 +53,6 @@ export default function CreateListingScreen({ navigation }) {
             <Text style={styles.gradeText}>เกรด 1A</Text>
             <Text style={styles.gradeSubText}>คุณภาพดี (A)</Text>
           </TouchableOpacity>
-
-          {/* --- [ 4. เพิ่ม "A" (ธรรมดา) ] --- */}
           <TouchableOpacity
             style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]}
             onPress={() => setGrade('A')}
@@ -64,8 +61,6 @@ export default function CreateListingScreen({ navigation }) {
             <Text style={styles.gradeText}>เกรด A</Text>
             <Text style={styles.gradeSubText}>คุณภาพกลาง</Text>
           </TouchableOpacity>
-          
-          {/* --- (B, C, CC เหมือนเดิม) --- */}
           <TouchableOpacity
             style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]}
             onPress={() => setGrade('B')}
@@ -92,26 +87,29 @@ export default function CreateListingScreen({ navigation }) {
           </TouchableOpacity>
         </View>
         
-        {/* === (ฟิลด์ที่เหลือ... เหมือนเดิม) === */}
-        <Text style={styles.label}>น้ำหนักที่เสนอขาย (กก.)</Text>
+        {/* --- [ 5. เปลี่ยนข้อความ (Placeholder) ] --- */}
+        <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
-        <Text style={styles.label}>ราคาที่ต้องการขาย (บาท/กก.)</Text>
+        
+        <Text style={styles.label}>ราคาที่เสนอซื้อ (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
-        <Text style={styles.label}>วันที่ต้องการให้รับซื้อ/วันที่คาดว่าจะเก็บเกี่ยว</Text>
+        
+        <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
-          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ช่วงกลางเดือนธันวาคม" onChangeText={setDeliveryDate} value={deliveryDate} />
+          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
         </View>
+
         <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
         <View style={styles.inputContainer}>
           <TextInput
             style={[styles.input, styles.inputMultiline]}
-            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่ผู้ซื้อควรทราบ (เช่น สวนปลอดสาร)"
+            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่เกษตรกรควรทราบ (เช่น รับเฉพาะสวนที่...)"
             onChangeText={setDetails}
             value={details}
             multiline={true}
@@ -122,14 +120,16 @@ export default function CreateListingScreen({ navigation }) {
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศขาย</Text>
+          {/* --- [ 6. เปลี่ยนข้อความปุ่ม ] --- */}
+          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-// --- [ 5. StyleSheet (อัปเกรด 6 เกรด!) ] ---
+// --- [ 7. StyleSheet (เหมือนเดิมเป๊ะ!) ] ---
+// (เราใช้ Styles เดียวกับ CreateListingScreen ได้เลย)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
@@ -142,11 +142,11 @@ const styles = StyleSheet.create({
   },
   gradeContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // <-- ทำให้ปุ่มตัดแถวได้
+    flexWrap: 'wrap', 
     justifyContent: 'space-between', 
   },
   gradeButton: {
-    width: '30%', // <-- กำหนดความกว้าง (3 ปุ่มต่อแถว)
+    width: '30%', 
     alignItems: 'center',
     paddingVertical: 15,
     backgroundColor: '#FFFFFF',
@@ -178,14 +178,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 10,
   },
-  // --- [ 6. สีเกรดใหม่ (6 เกรด) ] ---
-  grade2A: { backgroundColor: '#D32F2F' }, // แดง (พรีเมี่ยม)
-  grade1A: { backgroundColor: '#1E9E4F' }, // เขียว (1A)
-  gradeA:  { backgroundColor: '#4CAF50' }, // เขียวอ่อน (A) <-- สีใหม่
-  gradeB:  { backgroundColor: '#0D6EfD' }, // น้ำเงิน (B)
-  gradeC:  { backgroundColor: '#FFA000' }, // ส้ม (C)
-  gradeCC: { backgroundColor: '#616161' }, // เทา (CC)
-  
+  grade2A: { backgroundColor: '#D32F2F' }, 
+  grade1A: { backgroundColor: '#1E9E4F' }, 
+  gradeA:  { backgroundColor: '#4CAF50' }, 
+  gradeB:  { backgroundColor: '#0D6EfD' }, 
+  gradeC:  { backgroundColor: '#FFA000' }, 
+  gradeCC: { backgroundColor: '#616161' }, 
   gradeText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   gradeSubText: { fontSize: 12, color: '#888' },
   inputContainer: {

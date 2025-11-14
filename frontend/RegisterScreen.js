@@ -17,19 +17,20 @@ export default function RegisterScreen({ navigation }) {
       alert('รหัสผ่านไม่ตรงกัน!'); 
       return;
     }
-    // (ยังเป็นปุ่มปลอม)
-    console.log('Register Info:', { userType, name, phone, password }); //
+    console.log('Register Info:', { userType, name, phone, password }); 
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={Platform.OS === 'android' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
+        {/* --- [ 1. เพิ่ม Header + Logo ] --- */}
+        <View style={styles.header}>
+            <Image source={require('./logo/Logo.png')} style={styles.logo} />
+            <Text style={styles.headerTitle}>สร้างบัญชีใหม่</Text>
+        </View>
+
         <View style={styles.card}>
-          <Text style={styles.registerTitle}>สร้างบัญชีใหม่</Text>
-          <Text style={styles.registerSubtitle}>กรอกข้อมูลของคุณเพื่อใช้งาน</Text>
-          
-          {/* ... (โค้ด JSX ทั้งหมดเหมือนเดิม) ... */}
           <Text style={styles.label}>คุณเป็น</Text>
           <View style={styles.userTypeContainer}>
             <TouchableOpacity
@@ -75,10 +76,32 @@ export default function RegisterScreen({ navigation }) {
   );
 }
 
-// --- Styles (ฉบับเต็ม) ---
+// --- Styles (ฉบับเต็ม + Logo) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   scrollContainer: { flexGrow: 1, justifyContent: 'center', paddingVertical: 20 },
+  header: { // [แก้แล้ว]
+    backgroundColor: '#1E9E4F', 
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 20 : 60,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginBottom: -30, 
+    zIndex: 1,
+  },
+  logo: { // [แก้แล้ว]
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
+    marginBottom: 10,
+  },
+  headerTitle: { // [แก้แล้ว]
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
   card: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
@@ -89,9 +112,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    zIndex: 0, 
   },
-  registerTitle: { fontSize: 22, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  registerSubtitle: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 20 },
   label: { fontSize: 14, color: '#555', marginBottom: 5, marginTop: 10 },
   userTypeContainer: { flexDirection: 'row', marginBottom: 15 },
   userTypeButton: {
@@ -128,4 +150,4 @@ const styles = StyleSheet.create({
   loginLinkContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
   loginText: { fontSize: 14, color: '#888' },
   loginLink: { color: '#1E9E4F', fontWeight: 'bold' },
-}); //
+});
