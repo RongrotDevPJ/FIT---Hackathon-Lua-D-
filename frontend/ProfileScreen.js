@@ -1,32 +1,50 @@
 import React from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, 
-  TouchableOpacity, Image, Alert 
+  TouchableOpacity, Image, Alert,
+  Platform // <-- [1. Import] เพิ่ม Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons'; // (ผมเปิดไอคอนให้เลย)
 
 export default function ProfileScreen({ navigation }) {
   const userName = "สมชาย มั่นคง";
   const userType = "เกษตรกร/ผู้ขาย"; // (อันนี้เราต้องแก้ Logic ทีหลังว่ามาจาก User Type ไหน)
 
-  // --- ฟังก์ชัน "ดีดตัว" (ตัวจริง!) ---
+  // --- [2. อัปเกรด!] ฟังก์ชัน "ดีดตัว" (ฉบับ 2 ระบบ) ---
   const handleLogout = () => {
-    Alert.alert(
-      "ออกจากระบบ", 
-      "คุณต้องการออกจากระบบใช่หรือไม่?",
-      [
-        { text: "ยกเลิก", style: "cancel" },
-        { 
-          text: "ตกลง", 
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }], 
-            });
+    // --- [ถ้าเป็น "เว็บ"] ---
+    if (Platform.OS === 'web') {
+      // (ใช้ window.confirm... มันจะเด้งป๊อปอัพ "ตกลง/ยกเลิก" ของเบราว์เซอร์)
+      if (window.confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
+        // (ถ้าผู้ใช้กด "ตกลง")
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }], 
+        });
+      }
+      // (ถ้าผู้ใช้กด "ยกเลิก"... มันก็จะไม่ทำอะไร... ซึ่งถูกต้องแล้ว)
+    } 
+    // --- [ถ้าเป็น "มือถือ"] ---
+    else {
+      // (ใช้ Alert.alert สวยๆ เหมือนเดิม)
+      Alert.alert(
+        "ออกจากระบบ", 
+        "คุณต้องการออกจากระบบใช่หรือไม่?",
+        [
+          { text: "ยกเลิก", style: "cancel" },
+          { 
+            text: "ตกลง", 
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }], 
+              });
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (
@@ -38,13 +56,19 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <View style={styles.menuContainer}>
           <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="person-outline" size={24} color="#333" />
             <Text style={styles.menuText}>แก้ไขข้อมูลส่วนตัว</Text>
+            <Ionicons name="chevron-forward-outline" size={24} color="#AAA" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="settings-outline" size={24} color="#333" />
             <Text style={styles.menuText}>การตั้งค่า</Text>
+            <Ionicons name="chevron-forward-outline" size={24} color="#AAA" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="help-circle-outline" size={24} color="#333" />
             <Text style={styles.menuText}>ศูนย์ช่วยเหลือ</Text>
+            <Ionicons name="chevron-forward-outline" size={24} color="#AAA" />
           </TouchableOpacity>
         </View>
         <View style={styles.logoutContainer}>
@@ -60,7 +84,7 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// --- Styles (ฉบับเต็ม) ---
+// --- Styles (ฉบับเต็ม + ไอคอน) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   container: { flex: 1 },
@@ -82,7 +106,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  menuText: { flex: 1, fontSize: 16, color: '#333' },
+  menuText: { 
+    flex: 1, // ดันลูกศรไปทางขวา
+    fontSize: 16, 
+    color: '#333',
+    marginLeft: 15, // (เว้นระยะจากไอคอน)
+  },
   logoutContainer: { padding: 20, marginTop: 20 },
   logoutButton: {
     backgroundColor: '#FFCDD2', 

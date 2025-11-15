@@ -1,110 +1,95 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
-  TextInput, ScrollView, Platform, Alert 
+  TextInput, ScrollView, Platform, Alert // <-- (Alert กับ Platform ต้องมี)
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 
 export default function CreateBidScreen({ navigation }) {
-  // --- [ 1. State (เกือบเหมือนเดิม) ] ---
-  const [grade, setGrade] = useState(''); // 2A, 1A, A, B, C, CC
+  const [grade, setGrade] = useState(''); 
   const [weight, setWeight] = useState('');
-  const [price, setPrice] = useState(''); // (อันนี้คือ "ราคาที่เสนอ")
+  const [price, setPrice] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
+  // --- [ อัปเกรด! ] ฟังก์ชัน "ยืนยัน" (ฉบับ 2 ระบบ) ---
   const handleSubmit = () => {
-    // --- [ 2. Logic การตรวจสอบ (เหมือนเดิม) ] ---
+    // (Validation)
     if (!grade || !weight || !price || !deliveryDate) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
     
     console.log('Submitting Bid:', { grade, weight, price, deliveryDate, details });
-    
-    // --- [ 3. เปลี่ยนข้อความ Alert ] ---
-    Alert.alert(
-        'ประกาศรับซื้อสำเร็จ', 
-        'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
-        [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
-    );
+
+    // --- [ นี่คือ "ทางแยก" ของปุ่ม "ตกลง"] ---
+    if (Platform.OS === 'web') {
+      // (ใช้ window.alert)
+      window.alert('ประกาศรับซื้อสำเร็จ!\nประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว');
+      navigation.goBack();
+    } else {
+      // (ใช้ Alert.alert สวยๆ เหมือนเดิม)
+      Alert.alert(
+          'ประกาศรับซื้อสำเร็จ', 
+          'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
+          [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
+      );
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
+        {/* ... (JSX/Styles ที่เหลือ... เหมือนเดิมเป๊ะ) ... */}
         
-        {/* --- [ 4. เกรด (6 เกรด... เหมือนเดิมเป๊ะ) ] --- */}
         <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === '2A' && styles.gradeButtonActive]}
-            onPress={() => setGrade('2A')}
-          >
+          {/* (6 เกรด... ถูกต้อง) */}
+          <TouchableOpacity style={[styles.gradeButton, grade === '2A' && styles.gradeButtonActive]} onPress={() => setGrade('2A')}>
             <Text style={[styles.gradeCircle, styles.grade2A]}>2A</Text>
             <Text style={styles.gradeText}>เกรด 2A</Text>
             <Text style={styles.gradeSubText}>พรีเมี่ยม (AA)</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === '1A' && styles.gradeButtonActive]}
-            onPress={() => setGrade('1A')}
-          >
+          <TouchableOpacity style={[styles.gradeButton, grade === '1A' && styles.gradeButtonActive]} onPress={() => setGrade('1A')}>
             <Text style={[styles.gradeCircle, styles.grade1A]}>1A</Text>
             <Text style={styles.gradeText}>เกรด 1A</Text>
             <Text style={styles.gradeSubText}>คุณภาพดี (A)</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]}
-            onPress={() => setGrade('A')}
-          >
+          <TouchableOpacity style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]} onPress={() => setGrade('A')}>
             <Text style={[styles.gradeCircle, styles.gradeA]}>A</Text>
             <Text style={styles.gradeText}>เกรด A</Text>
             <Text style={styles.gradeSubText}>คุณภาพกลาง</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]}
-            onPress={() => setGrade('B')}
-          >
+          <TouchableOpacity style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]} onPress={() => setGrade('B')}>
             <Text style={[styles.gradeCircle, styles.gradeB]}>B</Text>
             <Text style={styles.gradeText}>เกรด B</Text>
             <Text style={styles.gradeSubText}>มาตรฐานทั่วไป</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]}
-            onPress={() => setGrade('C')}
-          >
+          <TouchableOpacity style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]} onPress={() => setGrade('C')}>
             <Text style={[styles.gradeCircle, styles.gradeC]}>C</Text>
             <Text style={styles.gradeText}>เกรด C</Text>
             <Text style={styles.gradeSubText}>คุณภาพรอง</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]}
-            onPress={() => setGrade('CC')}
-          >
+          <TouchableOpacity style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]} onPress={() => setGrade('CC')}>
             <Text style={[styles.gradeCircle, styles.gradeCC]}>CC</Text>
             <Text style={styles.gradeText}>เกรด CC</Text>
             <Text style={styles.gradeSubText}>ลำไยร่วง/คละ</Text>
           </TouchableOpacity>
         </View>
-        
-        {/* --- [ 5. เปลี่ยนข้อความ (Placeholder) ] --- */}
         <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
-        
         <Text style={styles.label}>ราคาที่เสนอซื้อ (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
-        
         <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
         </View>
-
         <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
         <View style={styles.inputContainer}>
           <TextInput
@@ -117,10 +102,8 @@ export default function CreateBidScreen({ navigation }) {
           />
         </View>
       </ScrollView>
-
       <View style={styles.footer}>
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          {/* --- [ 6. เปลี่ยนข้อความปุ่ม ] --- */}
           <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
         </TouchableOpacity>
       </View>
@@ -128,23 +111,12 @@ export default function CreateBidScreen({ navigation }) {
   );
 }
 
-// --- [ 7. StyleSheet (เหมือนเดิมเป๊ะ!) ] ---
-// (เราใช้ Styles เดียวกับ CreateListingScreen ได้เลย)
+// --- (Styles... เหมือนเดิมเป๊ะ) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
-  label: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  gradeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap', 
-    justifyContent: 'space-between', 
-  },
+  label: { fontSize: 16, fontWeight: 'bold', color: '#333', marginTop: 15, marginBottom: 10 },
+  gradeContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   gradeButton: {
     width: '30%', 
     alignItems: 'center',
@@ -161,11 +133,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  gradeButtonActive: {
-    borderColor: '#1E9E4F',
-    backgroundColor: '#E8F5E9',
-    elevation: 4,
-  },
+  gradeButtonActive: { borderColor: '#1E9E4F', backgroundColor: '#E8F5E9', elevation: 4 },
   gradeCircle: {
     width: 40,
     height: 40,
@@ -195,31 +163,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 5, 
   },
-  input: {
-    flex: 1,
-    paddingHorizontal: 15,
-    paddingVertical: Platform.OS === 'ios' ? 15 : 12,
-    fontSize: 16,
-    color: '#333',
-  },
+  input: { flex: 1, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 15 : 12, fontSize: 16, color: '#333' },
   inputSuffix: { fontSize: 16, color: '#888', paddingHorizontal: 15 },
-  inputMultiline: {
-    height: 100,
-    textAlignVertical: 'top', 
-    paddingTop: 15, 
-  },
-  footer: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20, 
-    borderTopWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  submitButton: {
-    backgroundColor: '#1E9E4F',
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
+  inputMultiline: { height: 100, textAlignVertical: 'top', paddingTop: 15 },
+  footer: { backgroundColor: '#FFFFFF', padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
+  submitButton: { backgroundColor: '#1E9E4F', paddingVertical: 15, borderRadius: 8, alignItems: 'center' },
   submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 });
