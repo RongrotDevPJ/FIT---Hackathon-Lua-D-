@@ -5,34 +5,33 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 
-export default function CreateListingScreen({ navigation }) {
+export default function CreateBidScreen({ navigation }) {
   const [grade, setGrade] = useState(''); 
   const [weight, setWeight] = useState('');
-  const [price, setPrice] = useState('');
+  const [price, setPrice] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
   // --- [ อัปเกรด! ] ฟังก์ชัน "ยืนยัน" (ฉบับ 2 ระบบ) ---
   const handleSubmit = () => {
-    // (Validation (ตรวจสอบ)... ส่วนนี้ Alert.alert ธรรมดา... เว็บรับได้ครับ)
+    // (Validation)
     if (!grade || !weight || !price || !deliveryDate) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ส่งมอบ) ให้ครบถ้วน');
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
     
-    console.log('Submitting:', { grade, weight, price, deliveryDate, details });
+    console.log('Submitting Bid:', { grade, weight, price, deliveryDate, details });
 
     // --- [ นี่คือ "ทางแยก" ของปุ่ม "ตกลง"] ---
     if (Platform.OS === 'web') {
-      // (ใช้ window.alert... มันจะเด้งป๊อปอัพ "ตกลง" ของเบราว์เซอร์)
-      window.alert('ประกาศขายสำเร็จ!\nประกาศของคุณจะถูกส่งไปยังโรงงานผู้ซื้อแล้ว');
-      // (พอกด "ตกลง" ... ก็เด้งกลับ)
+      // (ใช้ window.alert)
+      window.alert('ประกาศรับซื้อสำเร็จ!\nประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว');
       navigation.goBack();
     } else {
       // (ใช้ Alert.alert สวยๆ เหมือนเดิม)
       Alert.alert(
-          'ประกาศขายสำเร็จ', 
-          'ประกาศของคุณจะถูกส่งไปยังโรงงานผู้ซื้อแล้ว',
+          'ประกาศรับซื้อสำเร็จ', 
+          'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
           [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
       );
     }
@@ -43,7 +42,7 @@ export default function CreateListingScreen({ navigation }) {
       <ScrollView style={styles.container}>
         {/* ... (JSX/Styles ที่เหลือ... เหมือนเดิมเป๊ะ) ... */}
         
-        <Text style={styles.label}>เลือกเกรดลำไย</Text>
+        <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
           {/* (6 เกรด... ถูกต้อง) */}
           <TouchableOpacity style={[styles.gradeButton, grade === '2A' && styles.gradeButtonActive]} onPress={() => setGrade('2A')}>
@@ -77,25 +76,25 @@ export default function CreateListingScreen({ navigation }) {
             <Text style={styles.gradeSubText}>ลำไยร่วง/คละ</Text>
           </TouchableOpacity>
         </View>
-        <Text style={styles.label}>น้ำหนักที่เสนอขาย (กก.)</Text>
+        <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
-        <Text style={styles.label}>ราคาที่ต้องการขาย (บาท/กก.)</Text>
+        <Text style={styles.label}>ราคาที่เสนอซื้อ (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
-        <Text style={styles.label}>วันที่ต้องการให้รับซื้อ/วันที่คาดว่าจะเก็บเกี่ยว</Text>
+        <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
-          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ช่วงกลางเดือนธันวาคม" onChangeText={setDeliveryDate} value={deliveryDate} />
+          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
         </View>
         <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
         <View style={styles.inputContainer}>
           <TextInput
             style={[styles.input, styles.inputMultiline]}
-            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่ผู้ซื้อควรทราบ (เช่น สวนปลอดสาร)"
+            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่เกษตรกรควรทราบ (เช่น รับเฉพาะสวนที่...)"
             onChangeText={setDetails}
             value={details}
             multiline={true}
@@ -105,7 +104,7 @@ export default function CreateListingScreen({ navigation }) {
       </ScrollView>
       <View style={styles.footer}>
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศขาย</Text>
+          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
