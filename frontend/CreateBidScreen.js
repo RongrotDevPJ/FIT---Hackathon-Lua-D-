@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
-  TextInput, ScrollView, Platform, Alert 
+  TextInput, ScrollView, Platform, Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
+
+// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
+import { API_BASE_URL } from './apiConfig';
 
 export default function CreateBidScreen({ navigation }) {
   const [grade, setGrade] = useState(''); 
@@ -12,26 +16,63 @@ export default function CreateBidScreen({ navigation }) {
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
-  const handleSubmit = () => {
-    // (Validation (ตรวจสอบ)... ส่วนนี้ Alert.alert ธรรมดา... เว็บรับได้ครับ)
-    if (!grade || !weight || !price || !deliveryDate) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ต้องการ) ให้ครบถ้วน');
+  // --- [ 📍 เพิ่ม State ที่ Backend ต้องการ ] ---
+  const [province, setProvince] = useState('');
+  const [amphoe, setAmphoe] = useState('');   
+  
+  // (สำคัญ! ใส่ ID ปลอมไปก่อน)
+  const [ownerId, setOwnerId] = useState('TEMP_BUYER_ID_456'); 
+
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    
+    if (!grade || !weight || !price || !deliveryDate || !province || !amphoe) {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, จังหวัด, อำเภอ, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
-    
-    // (*** นี่คือ "โค้ดจริง" ... แต่เรายังไม่ได้ต่อท่อ API ***)
-    console.log('Submitting Bid:', { grade, weight, price, deliveryDate, details });
 
-    // --- [ "ผ่าตัด 2 ระบบ" (Cross-platform) ] ---
-    if (Platform.OS === 'web') {
-      window.alert('ประกาศรับซื้อสำเร็จ!\nประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว');
-      navigation.goBack();
-    } else {
+    if (loading) return;
+    setLoading(true);
+    
+    const payload = {
+      type: 'buy', // (นี่คือ "ประกาศรับซื้อ")
+      ownerId: ownerId, 
+      province: province,
+      amphoe: amphoe,
+      grade: grade,
+      amountKg: Number(weight),       
+      requestedPrice: Number(price),  
+      deliveryDate: deliveryDate,
+      details: details,
+    };
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders`, { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+
       Alert.alert(
           'ประกาศรับซื้อสำเร็จ', 
           'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
           [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
       );
+      
+    } catch (error) {
+      console.error('Error submitting bid:', error);
+      Alert.alert('เกิดข้อผิดพลาด', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -39,7 +80,7 @@ export default function CreateBidScreen({ navigation }) {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         
-        {/* --- [ 1. กลับไป 5 เกรด (AA, A, B, C, CC) ] --- */}
+        {/* --- (ส่วนเลือกเกรด) --- */}
         <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
           <TouchableOpacity
@@ -84,7 +125,7 @@ export default function CreateBidScreen({ navigation }) {
           </TouchableOpacity>
         </View>
         
-        {/* === (ฟิลด์ที่เหลือ... เหมือนเดิม) === */}
+        {/* === ฟิลด์ตัวเลข === */}
         <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
@@ -95,6 +136,18 @@ export default function CreateBidScreen({ navigation }) {
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
+
+        {/* --- [ 📍 เพิ่มช่องกรอก จังหวัด/อำเภอ ] --- */}
+        <Text style={styles.label}>จังหวัด</Text>
+        <View style={styles.inputContainer}>
+          <TextInput style={styles.input} placeholder="เช่น เชียงใหม่, ลำพูน" onChangeText={setProvince} value={province} />
+        </View>
+        <Text style={styles.label}>อำเภอ</Text>
+        <View style={styles.inputContainer}>
+          <TextInput style={styles.input} placeholder="เช่น เมือง, สารภี" onChangeText={setAmphoe} value={amphoe} />
+        </View>
+
+        {/* === ฟิลด์วันที่และรายละเอียด === */}
         <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
@@ -111,16 +164,26 @@ export default function CreateBidScreen({ navigation }) {
           />
         </View>
       </ScrollView>
+
+      {/* --- (ปุ่ม Submit) --- */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
+        <TouchableOpacity 
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-// --- [ StyleSheet (กลับไป 5 เกรด) ] ---
+// --- (Styles) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
@@ -159,7 +222,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 10,
   },
-  // --- [ สีเกรด (5 เกรด) ] ---
   gradeAA: { backgroundColor: '#D32F2F' }, 
   gradeA:  { backgroundColor: '#1E9E4F' }, 
   gradeB:  { backgroundColor: '#0D6EfD' }, 
@@ -182,5 +244,8 @@ const styles = StyleSheet.create({
   inputMultiline: { height: 100, textAlignVertical: 'top', paddingTop: 15 },
   footer: { backgroundColor: '#FFFFFF', padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
   submitButton: { backgroundColor: '#1E9E4F', paddingVertical: 15, borderRadius: 8, alignItems: 'center' },
+  submitButtonDisabled: {
+    backgroundColor: '#A5D6A7',
+  },
   submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 });

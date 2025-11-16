@@ -2,14 +2,18 @@ import React, { useState } from 'react';
 import {
   StyleSheet, Text, View, Image, TextInput,
   TouchableOpacity, ScrollView, Platform, StatusBar,
-  Alert // <-- [1. Import] เพิ่ม Alert
+  Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- [2. Import "เครื่องมือ" Firebase] ---
-import { auth, db } from './firebaseConfig'; // (ปลั๊กไฟของเรา)
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore"; 
+// [ 📍 ลบ Firebase Client SDK ออก ]
+// import { auth, db } from './firebaseConfig'; 
+// import { createUserWithEmailAndPassword } from "firebase/auth";
+// import { doc, setDoc } from "firebase/firestore"; 
+
+// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
+// (เพิ่มบรรทัดนี้แทน)
+import { API_BASE_URL } from './apiConfig';
 
 export default function RegisterScreen({ navigation }) {
   const [userType, setUserType] = useState('farmer');
@@ -18,44 +22,78 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState(''); 
 
-  // --- [3. "ผ่าตัด" ฟังก์ชัน handleRegister!] ---
-  const handleRegister = async () => { // <-- (A) เพิ่ม async
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async () => {
     if (password !== confirmPassword) {
       Alert.alert('รหัสผ่านไม่ตรงกัน!'); 
       return;
     }
-    if (phone.trim() === '' || password.trim() === '' || name.trim() === '') {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอก ชื่อ, เบอร์โทร, และรหัสผ่าน');
+    // (เพิ่มการเช็คที่เข้มงวดขึ้น)
+    if (phone.trim().length < 10) {
+       Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกเบอร์โทร 10 หลัก');
+       return;
+    }
+     if (password.trim().length < 6) {
+       Alert.alert('ข้อมูลไม่ครบ', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+       return;
+    }
+    if (name.trim() === '') {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอก ชื่อ-นามสกุล');
       return;
     }
+    
+    if (loading) return;
+    setLoading(true);
+
+    // [ 📍 สร้าง Payload ]
+    // (Backend ต้องแก้ให้รับ password และไปสร้างใน Auth ด้วย)
+    const payload = {
+      name: name,
+      role: userType, // 'farmer' หรือ 'buyer'
+      phone: phone.trim(),
+      password: password, // (ส่ง password ให้ Backend)
+    };
 
     try {
-      // (B) สร้าง User ใน Auth
-      // (Firebase Auth ชอบ Email... เราเลยแปลง "เบอร์โทร" ให้เป็น Email ปลอมๆ)
-      const userCredential = await createUserWithEmailAndPassword(auth, phone.trim() + "@tempdomain.com", password);
-      const user = userCredential.user;
-
-      // (C) "บันทึก" ข้อมูล (ชื่อ, Role) ลงใน "ตู้เอกสาร" (Firestore)
-      // โดยใช้ ID (uid) ของคนที่เพิ่งสมัคร เป็น "ชื่อแฟ้ม"
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        name: name,
-        phone: phone.trim(),
-        userType: userType, // 'farmer' หรือ 'buyer'
-        createdAt: new Date(), // (แถมวันที่สมัคร)
+      // [ 📍 ยิง API ไปที่ Backend ]
+      // (คุณอาจจะต้องให้เพื่อนแก้ Endpoint เป็น POST /register)
+      const response = await fetch(`${API_BASE_URL}/users`, { // (Endpoint POST /users)
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
-      // (D) (ถ้าสำเร็จ... ก็ดีดตัวไปหน้าหลัก... แบบเดียวกับ Login)
-      if (userType === 'farmer') {
-        navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
-      } else {
-        navigation.reset({ index: 0, routes: [{ name: 'BuyerApp' }] });
+      const newUser = await response.json();
+
+      if (!response.ok) {
+        throw new Error(newUser.error || 'ลงทะเบียนไม่สำเร็จ');
       }
+
+      console.log('User created via API:', newUser);
+
+      Alert.alert(
+        'ลงทะเบียนสำเร็จ',
+        'บัญชีของคุณถูกสร้างแล้ว กรุณากลับไปหน้าเข้าสู่ระบบ',
+        [{
+          text: 'ตกลง',
+          onPress: () => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+            }
+          }
+        }]
+      );
       
     } catch (error) {
-      // (E) (ถ้า Firebase พัง... เช่น "รหัสผ่านสั้นไป")
       console.error(error);
       Alert.alert('ลงทะเบียนไม่สำเร็จ', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,7 +107,6 @@ export default function RegisterScreen({ navigation }) {
         </View>
 
         <View style={styles.card}>
-          {/* ... (JSX/Styles ที่เหลือ... เหมือนเดิมเป๊ะ) ... */}
           <Text style={styles.label}>คุณเป็น</Text>
           <View style={styles.userTypeContainer}>
             <TouchableOpacity
@@ -89,18 +126,24 @@ export default function RegisterScreen({ navigation }) {
           </View>
           <Text style={styles.label}>ชื่อ-นามสกุล</Text>
           <TextInput style={styles.input} placeholder="กรอกชื่อ-นามสกุล" value={name} onChangeText={setName} />
-          <Text style={styles.label}>เบอร์โทรศัพท์</Text>
-          <TextInput style={styles.input} placeholder="0xx-xxx-xxxx" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+          <Text style={styles.label}>เบอร์โทรศัพท์ (ใช้เข้าระบบ)</Text>
+          <TextInput style={styles.input} placeholder="0xx-xxx-xxxx" keyboardType="phone-pad" value={phone} onChangeText={setPhone} maxLength={10} />
           <Text style={styles.label}>รหัสผ่าน</Text>
           <TextInput style={styles.input} placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัว)" secureTextEntry={true} value={password} onChangeText={setPassword} />
           <Text style={styles.label}>ยืนยันรหัสผ่าน</Text>
           <TextInput style={styles.input} placeholder="กรอกรหัสผ่านอีกครั้ง" secureTextEntry={true} value={confirmPassword} onChangeText={setConfirmPassword} />
 
+          {/* --- [ 📍 อัปเกรดปุ่ม Register ] --- */}
           <TouchableOpacity
-            style={styles.registerButton}
-            onPress={handleRegister} // <-- (เรียก "ตัวจริง" แล้ว)
+            style={[styles.registerButton, loading && styles.registerButtonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
           >
-            <Text style={styles.registerButtonText}>ลงทะเบียน</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.registerButtonText}>ลงทะเบียน</Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.loginLinkContainer}>
@@ -115,7 +158,7 @@ export default function RegisterScreen({ navigation }) {
   );
 }
 
-// --- (Styles... เหมือนเดิมเป๊ะ) ---
+// --- (Styles) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   scrollContainer: { flexGrow: 1, justifyContent: 'center', paddingVertical: 20 },
@@ -184,6 +227,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 20,
+  },
+  registerButtonDisabled: {
+    backgroundColor: '#A5D6A7', 
   },
   registerButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
   loginLinkContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
