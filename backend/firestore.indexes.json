@@ -13,10 +13,22 @@
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "ownerId",   "order": "ASCENDING" },
         { "fieldPath": "status",    "order": "ASCENDING" },
-        { "fieldPath": "grade",     "order": "ASCENDING" },
+        { "fieldPath": "type",      "order": "ASCENDING" },
         { "fieldPath": "province",  "order": "ASCENDING" },
+        { "fieldPath": "amphoe",    "order": "ASCENDING" },
+        { "fieldPath": "grade",     "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "type",      "order": "ASCENDING" },
+        { "fieldPath": "province",  "order": "ASCENDING" },
+        { "fieldPath": "grade",     "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }

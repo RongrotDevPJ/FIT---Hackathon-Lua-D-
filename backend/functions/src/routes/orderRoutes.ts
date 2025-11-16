@@ -2,6 +2,9 @@ import { Router, Request, Response } from "express";
 import { db } from "../config/firestore";
 import { evaluatePrice, GradeType } from "../services/priceService";
 import { Order } from "../models/Order";
+import { findMatchesForOrder } from "../services/orderService";
+
+
 
 const router = Router();
 
@@ -153,5 +156,24 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response): Prom
     res.status(500).json({ error: e.message }); return;
   }
 });
+// GET /orders/:id/matches  → หาออเดอร์ที่เข้าคู่
+router.get("/orders/:id/matches", async (req: Request, res: Response) => {
+  try {
+    let limit = Number(req.query.limit ?? 20);
+    if (Number.isNaN(limit) || limit <= 0) limit = 20;
+    if (limit > 50) limit = 50;
+
+    const items = await findMatchesForOrder(req.params.id, { limit });
+    return res.json({ items });
+  } catch (e: any) {
+    if (e?.message === "order_not_found") {
+      return res.status(404).json({ error: "order_not_found" });
+    }
+    console.error(e);
+    return res.status(500).json({ error: e?.message ?? "internal_error" });
+  }
+});
+
+
 
 export default router;

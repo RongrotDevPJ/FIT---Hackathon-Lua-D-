@@ -9,7 +9,7 @@ router.use(express.json());
 router.post("/seed-ref", async (_req: Request, res: Response): Promise<void> => {
   try {
     const batch = db.batch();
-    const now = Timestamp.now(); // 
+    const now = Timestamp.now();  
     const data = [
       { id: "CM-AA-2025", province: "เชียงใหม่", grade: "AA", minPrice: 46, maxPrice: 56, avgPrice: 51, source: "mock/manual", updatedAt: now },
       { id: "CM-A-2025",  province: "เชียงใหม่", grade: "A",  minPrice: 34, maxPrice: 42, avgPrice: 38, source: "mock/manual", updatedAt: now },
