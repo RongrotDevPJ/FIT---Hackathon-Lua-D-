@@ -3,6 +3,13 @@ import { db } from "../config/firestore";
 import { evaluatePrice, GradeType } from "../services/priceService";
 import { Order } from "../models/Order";
 import { findMatchesForOrder } from "../services/orderService";
+import {
+  createOrUpdateNegotiation,
+  updateNegotiationStatus,
+  listNegotiationsOfOrder,
+  listNegotiationsByFarmer,
+  listNegotiationsByBuyer,
+} from "../services/negotiationService";
 
 
 
@@ -173,7 +180,106 @@ router.get("/orders/:id/matches", async (req: Request, res: Response) => {
     return res.status(500).json({ error: e?.message ?? "internal_error" });
   }
 });
+router.post("/orders/:id/negotiations", async (req: Request, res: Response) => {
+  try {
+    const orderId = req.params.id;
+    const { actorId, offeredPrice, amountKg, refAvgPrice, priceStatus } =
+      req.body ?? {};
 
+    if (
+      !actorId ||
+      offeredPrice === undefined ||
+      amountKg === undefined
+    ) {
+      return res.status(400).json({ error: "missing_fields" });
+    }
+
+    const nego = await createOrUpdateNegotiation({
+      orderId,
+      actorId: String(actorId),
+      offeredPrice: Number(offeredPrice),
+      amountKg: Number(amountKg),
+      refAvgPrice:
+        refAvgPrice !== undefined ? Number(refAvgPrice) : undefined,
+      priceStatus,
+    });
+
+    return res.status(201).json(nego);
+  } catch (e: any) {
+    console.error(e);
+    return res.status(400).json({ error: e.message ?? "internal_error" });
+  }
+});
+
+router.get("/orders/:id/negotiations", async (req: Request, res: Response) => {
+  try {
+    let limit = Number(req.query.limit ?? 50);
+    if (Number.isNaN(limit) || limit <= 0) limit = 50;
+    if (limit > 100) limit = 100;
+
+    const items = await listNegotiationsOfOrder(req.params.id, limit);
+    return res.json({ items });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+router.patch("/negotiations/:id", async (req: Request, res: Response) => {
+  try {
+    const negotiationId = req.params.id;
+    const { actorId, status } = req.body ?? {};
+
+    if (!actorId || !status) {
+      return res.status(400).json({ error: "missing_fields" });
+    }
+
+    if (!["accepted", "rejected", "cancelled"].includes(status)) {
+      return res.status(400).json({ error: "invalid_status" });
+    }
+
+    const updated = await updateNegotiationStatus({
+      negotiationId,
+      actorId: String(actorId),
+      newStatus: status,
+    });
+
+    return res.json(updated);
+  } catch (e: any) {
+    console.error(e);
+    if (e?.message === "negotiation_not_found") {
+      return res.status(404).json({ error: "negotiation_not_found" });
+    }
+    return res.status(400).json({ error: e.message ?? "internal_error" });
+  }
+});
+
+router.get("/negotiations", async (req: Request, res: Response) => {
+  try {
+    const { farmerId, buyerId } = req.query as any;
+    let limit = Number(req.query.limit ?? 20);
+    if (Number.isNaN(limit) || limit < 1) limit = 20;
+    if (limit > 100) limit = 100;
+
+    if (!farmerId && !buyerId) {
+      return res.status(400).json({ error: "farmerId_or_buyerId_required" });
+    }
+    if (farmerId && buyerId) {
+      return res.status(400).json({ error: "only_one_of_farmerId_or_buyerId" });
+    }
+
+    let items;
+    if (farmerId) {
+      items = await listNegotiationsByFarmer(String(farmerId), limit);
+    } else {
+      items = await listNegotiationsByBuyer(String(buyerId), limit);
+    }
+
+    return res.json({ items });
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message ?? "internal_error" });
+  }
+});
 
 
 export default router;
