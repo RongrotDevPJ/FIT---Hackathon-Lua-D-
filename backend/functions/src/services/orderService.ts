@@ -97,3 +97,83 @@ export async function listMyOrders(q: MyOrdersQuery) {
 
   return { items, nextCursor };
 }
+
+// ==== MATCHING LOGIC ====
+
+export interface MatchResult {
+  id: string;
+  priority: "same_amphoe" | "same_province";
+  order: Order;
+}
+
+export async function findMatchesForOrder(
+  orderId: string,
+  opts?: { limit?: number }
+): Promise<MatchResult[]> {
+  const limit = opts?.limit && opts.limit > 0
+    ? Math.min(opts.limit, 50)
+    : 20;
+
+  // เอา order ต้นทางก่อน
+  const baseSnap = await db.collection(COL).doc(orderId).get();
+  if (!baseSnap.exists) {
+    throw new Error("order_not_found");
+  }
+  const base = { id: baseSnap.id, ...(baseSnap.data() as Omit<Order, "id">) };
+
+  const counterpartType: OrderType = base.type === "sell" ? "buy" : "sell";
+
+  const results: MatchResult[] = [];
+  const usedIds = new Set<string>([orderId]);
+
+  // 1) จังหวัด + อำเภอเดียวกัน
+  let q1: FirebaseFirestore.Query = db.collection(COL)
+    .where("type", "==", counterpartType)
+    .where("status", "==", "open")
+    .where("grade", "==", base.grade)
+    .where("province", "==", base.province)
+    .where("amphoe", "==", base.amphoe);
+
+  const snap1 = await q1.limit(limit).get();
+  for (const doc of snap1.docs) {
+    if (usedIds.has(doc.id)) continue;
+
+    usedIds.add(doc.id);
+    results.push({
+      id: doc.id,
+      priority: "same_amphoe",
+      order: { id: doc.id, ...(doc.data() as Omit<Order, "id">) },
+    });
+  }
+
+  // 2) จังหวัดเดียวกัน (แต่ไม่นับตัวที่อำเภอเดียวกันซ้ำ)
+  if (results.length < limit) {
+    const remain = limit - results.length;
+
+    let q2: FirebaseFirestore.Query = db.collection(COL)
+      .where("type", "==", counterpartType)
+      .where("status", "==", "open")
+      .where("grade", "==", base.grade)
+      .where("province", "==", base.province);
+
+    const snap2 = await q2.limit(remain * 2).get(); // ดึงเผื่อแล้วค่อยกรองทีหลัง
+
+    for (const doc of snap2.docs) {
+      if (usedIds.has(doc.id)) continue; // กันซ้ำ province+amphoe
+      const data = doc.data() as Omit<Order, "id">;
+
+      if (data.amphoe === base.amphoe) continue; // กันเคสอำเภอเดียวกันที่ถูกดึงมาซ้ำ
+      usedIds.add(doc.id);
+
+      results.push({
+        id: doc.id,
+        priority: "same_province",
+        order: { id: doc.id, ...data },
+      });
+
+      if (results.length >= limit) break;
+    }
+  }
+
+  return results;
+}
