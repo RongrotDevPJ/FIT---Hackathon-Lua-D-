@@ -1,127 +1,108 @@
 import React, { useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  View,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  // --- SafeAreaView หายไปจากตรงนี้ ---
-  ScrollView, 
-  Platform,
-  StatusBar
+  StyleSheet, Text, View, Image, TextInput,
+  TouchableOpacity, ScrollView, Platform, StatusBar,
+  Alert // <-- [1. Import] เพิ่ม Alert
 } from 'react-native';
-
-// --- เราย้ายมันมา import ตรงนี้แทน ---
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function RegisterScreen({ navigation }) {
-  // (โค้ดที่เหลือเหมือนเดิมทุกประการ ไม่ต้องแก้)
+// --- [2. Import "เครื่องมือ" Firebase] ---
+import { auth, db } from './firebaseConfig'; // (ปลั๊กไฟของเรา)
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore"; 
 
-  // --- 1. State สำหรับหน้านี้ (เยอะกว่าเดิม) ---
+export default function RegisterScreen({ navigation }) {
   const [userType, setUserType] = useState('farmer');
-  const [name, setName] = useState(''); // <-- เพิ่มมา
+  const [name, setName] = useState(''); 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // <-- เพิ่มมา
+  const [confirmPassword, setConfirmPassword] = useState(''); 
 
-  const handleRegister = () => {
-    // --- 3. Logic การตรวจสอบ (เบื้องต้น) ---
+  // --- [3. "ผ่าตัด" ฟังก์ชัน handleRegister!] ---
+  const handleRegister = async () => { // <-- (A) เพิ่ม async
     if (password !== confirmPassword) {
-      alert('รหัสผ่านไม่ตรงกัน!'); // แจ้งเตือนแบบง่ายๆ
+      Alert.alert('รหัสผ่านไม่ตรงกัน!'); 
       return;
     }
-    console.log('Register Info:', { userType, name, phone, password });
+    if (phone.trim() === '' || password.trim() === '' || name.trim() === '') {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอก ชื่อ, เบอร์โทร, และรหัสผ่าน');
+      return;
+    }
+
+    try {
+      // (B) สร้าง User ใน Auth
+      // (Firebase Auth ชอบ Email... เราเลยแปลง "เบอร์โทร" ให้เป็น Email ปลอมๆ)
+      const userCredential = await createUserWithEmailAndPassword(auth, phone.trim() + "@tempdomain.com", password);
+      const user = userCredential.user;
+
+      // (C) "บันทึก" ข้อมูล (ชื่อ, Role) ลงใน "ตู้เอกสาร" (Firestore)
+      // โดยใช้ ID (uid) ของคนที่เพิ่งสมัคร เป็น "ชื่อแฟ้ม"
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: name,
+        phone: phone.trim(),
+        userType: userType, // 'farmer' หรือ 'buyer'
+        createdAt: new Date(), // (แถมวันที่สมัคร)
+      });
+
+      // (D) (ถ้าสำเร็จ... ก็ดีดตัวไปหน้าหลัก... แบบเดียวกับ Login)
+      if (userType === 'farmer') {
+        navigation.reset({ index: 0, routes: [{ name: 'MainApp' }] });
+      } else {
+        navigation.reset({ index: 0, routes: [{ name: 'BuyerApp' }] });
+      }
+      
+    } catch (error) {
+      // (E) (ถ้า Firebase พัง... เช่น "รหัสผ่านสั้นไป")
+      console.error(error);
+      Alert.alert('ลงทะเบียนไม่สำเร็จ', error.message);
+    }
   };
 
-  // --- 2. JSX (โครงสร้างหน้าจอ) ---
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={Platform.OS === 'android' ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.card}>
-          <Text style={styles.registerTitle}>สร้างบัญชีใหม่</Text>
-          <Text style={styles.registerSubtitle}>กรอกข้อมูลของคุณเพื่อใช้งาน</Text>
+        <View style={styles.header}>
+            <Image source={require('./logo/Logo.png')} style={styles.logo} />
+            <Text style={styles.headerTitle}>สร้างบัญชีใหม่</Text>
+        </View>
 
-          {/* --- ตัวสลับประเภทผู้ใช้ (เหมือนเดิม) --- */}
+        <View style={styles.card}>
+          {/* ... (JSX/Styles ที่เหลือ... เหมือนเดิมเป๊ะ) ... */}
           <Text style={styles.label}>คุณเป็น</Text>
           <View style={styles.userTypeContainer}>
             <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                userType === 'farmer' && styles.userTypeButtonActive,
-              ]}
+              style={[ styles.userTypeButton, userType === 'farmer' && styles.userTypeButtonActive ]}
               onPress={() => setUserType('farmer')}>
-              <Text
-                style={[
-                  styles.userTypeButtonText,
-                  userType === 'farmer' && styles.userTypeButtonTextActive,
-                ]}>
+              <Text style={[ styles.userTypeButtonText, userType === 'farmer' && styles.userTypeButtonTextActive ]}>
                 เกษตรกร/ผู้ขาย
               </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                userType === 'buyer' && styles.userTypeButtonActive,
-              ]}
+              style={[ styles.userTypeButton, userType === 'buyer' && styles.userTypeButtonActive ]}
               onPress={() => setUserType('buyer')}>
-              <Text
-                style={[
-                  styles.userTypeButtonText,
-                  userType === 'buyer' && styles.userTypeButtonTextActive,
-                ]}>
+              <Text style={[ styles.userTypeButtonText, userType === 'buyer' && styles.userTypeButtonTextActive ]}>
                 ผู้ซื้อ
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* --- ช่องกรอกข้อมูล (เพิ่มมา) --- */}
           <Text style={styles.label}>ชื่อ-นามสกุล</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="กรอกชื่อ-นามสกุล"
-            value={name}
-            onChangeText={setName}
-          />
-
+          <TextInput style={styles.input} placeholder="กรอกชื่อ-นามสกุล" value={name} onChangeText={setName} />
           <Text style={styles.label}>เบอร์โทรศัพท์</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="0xx-xxx-xxxx"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-
+          <TextInput style={styles.input} placeholder="0xx-xxx-xxxx" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
           <Text style={styles.label}>รหัสผ่าน</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัว)"
-            secureTextEntry={true}
-            value={password}
-            onChangeText={setPassword}
-          />
-
+          <TextInput style={styles.input} placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัว)" secureTextEntry={true} value={password} onChangeText={setPassword} />
           <Text style={styles.label}>ยืนยันรหัสผ่าน</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="กรอกรหัสผ่านอีกครั้ง"
-            secureTextEntry={true}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
+          <TextInput style={styles.input} placeholder="กรอกรหัสผ่านอีกครั้ง" secureTextEntry={true} value={confirmPassword} onChangeText={setConfirmPassword} />
 
-          {/* --- ปุ่มลงทะเบียน --- */}
           <TouchableOpacity
             style={styles.registerButton}
-            onPress={handleRegister} // <-- เรียกใช้ฟังก์ชัน
+            onPress={handleRegister} // <-- (เรียก "ตัวจริง" แล้ว)
           >
             <Text style={styles.registerButtonText}>ลงทะเบียน</Text>
           </TouchableOpacity>
 
-          {/* --- ลิงก์กลับไป Login --- */}
           <View style={styles.loginLinkContainer}>
             <Text style={styles.loginText}>มีบัญชีอยู่แล้ว?</Text>
             <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -134,17 +115,31 @@ export default function RegisterScreen({ navigation }) {
   );
 }
 
-// --- 4. StyleSheet (สไตล์ทั้งหมด) ---
+// --- (Styles... เหมือนเดิมเป๊ะ) ---
 const styles = StyleSheet.create({
-  // (สไตล์ทั้งหมดเหมือนเดิมเป๊ะ)
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F4F4', 
+  safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center', paddingVertical: 20 },
+  header: { 
+    backgroundColor: '#1E9E4F', 
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 20 : 60,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginBottom: -30, 
+    zIndex: 1,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center', 
-    paddingVertical: 20, 
+  logo: { 
+    width: 100,
+    height: 100,
+    resizeMode: 'contain',
+    marginBottom: 10,
+  },
+  headerTitle: { 
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -156,29 +151,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+    zIndex: 0, 
   },
-  registerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-  },
-  registerSubtitle: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 5,
-    marginTop: 10,
-  },
-  userTypeContainer: {
-    flexDirection: 'row',
-    marginBottom: 15,
-  },
+  label: { fontSize: 14, color: '#555', marginBottom: 5, marginTop: 10 },
+  userTypeContainer: { flexDirection: 'row', marginBottom: 15 },
   userTypeButton: {
     flex: 1,
     alignItems: 'center',
@@ -189,18 +165,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 5,
   },
-  userTypeButtonActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#1E9E4F',
-  },
-  userTypeButtonText: {
-    fontSize: 16,
-    color: '#888',
-  },
-  userTypeButtonTextActive: {
-    color: '#1E9E4F',
-    fontWeight: 'bold',
-  },
+  userTypeButtonActive: { backgroundColor: '#E8F5E9', borderColor: '#1E9E4F' },
+  userTypeButtonText: { fontSize: 16, color: '#888' },
+  userTypeButtonTextActive: { color: '#1E9E4F', fontWeight: 'bold' },
   input: {
     backgroundColor: '#FAFAFA',
     borderWidth: 1,
@@ -218,22 +185,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
-  registerButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  loginLinkContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  loginText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  loginLink: {
-    color: '#1E9E4F',
-    fontWeight: 'bold',
-  },
+  registerButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  loginLinkContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
+  loginText: { fontSize: 14, color: '#888' },
+  loginLink: { color: '#1E9E4F', fontWeight: 'bold' },
 });
