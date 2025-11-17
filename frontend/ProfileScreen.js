@@ -5,31 +5,33 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 
 // [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
 import { API_BASE_URL } from './apiConfig';
-
-// (*** สำคัญ: MY_USER_ID ควรจะถูกดึงมาจาก Global State หลังจาก Login! ***)
-// (ตอนนี้ใช้ ID ปลอมไปก่อน เพื่อให้โค้ดรันได้)
-const MY_USER_ID = 'TEMP_USER_ID_123'; 
 
 export default function ProfileScreen({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null); 
   
-  const [showOrders, setShowOrders] = useState(true);
+  // 📍 ลบ State ที่เกี่ยวข้องกับการแสดงรายการออก
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = async (userId) => { 
+    if (!userId) { 
+        setLoading(false);
+        return;
+    }
+    
     setLoading(true);
     setError(null);
     try {
-      // (*** แก้ไข path ตรงนี้ ***)
-      const response = await fetch(`${API_BASE_URL}/usersApi/${MY_USER_ID}`);
+      const response = await fetch(`${API_BASE_URL}/usersApi/${userId}`);
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'ไม่สามารถดึงข้อมูลโปรไฟล์ได้');
+        throw new Error(result.error || `ไม่สามารถดึงข้อมูลโปรไฟล์ได้: ${response.status}`);
       }
 
       setUserProfile(result);
@@ -43,7 +45,12 @@ export default function ProfileScreen({ navigation }) {
   };
 
   useEffect(() => {
-    fetchUserProfile();
+    const loadUserId = async () => {
+        const storedId = await AsyncStorage.getItem('userId');
+        setCurrentUserId(storedId); 
+        fetchUserProfile(storedId);
+    };
+    loadUserId();
   }, []);
 
   // --- (Render Functions) ---
@@ -62,7 +69,7 @@ export default function ProfileScreen({ navigation }) {
       return (
         <View style={styles.loadingContainer}>
           <Text style={styles.errorText}>ข้อผิดพลาด: {error}</Text>
-          <TouchableOpacity onPress={fetchUserProfile} style={styles.retryButton}>
+          <TouchableOpacity onPress={() => fetchUserProfile(currentUserId)} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>ลองอีกครั้ง</Text>
           </TouchableOpacity>
         </View>
@@ -70,7 +77,7 @@ export default function ProfileScreen({ navigation }) {
     }
 
     if (!userProfile) {
-        return <Text style={styles.loadingText}>ไม่พบข้อมูลผู้ใช้</Text>;
+        return <Text style={styles.loadingText}>ไม่พบข้อมูลผู้ใช้ (กรุณาล็อกอิน)</Text>;
     }
 
     return (
@@ -88,7 +95,6 @@ export default function ProfileScreen({ navigation }) {
         </View>
         <View style={styles.infoRow}>
           <Ionicons name="location-outline" size={18} color="#555" />
-          {/* [ 📍 แสดง จังหวัด/อำเภอ ที่เพิ่มเมื่อกี้ ] */}
           <Text style={styles.infoText}>
             {userProfile.amphoe && userProfile.province 
                 ? `${userProfile.amphoe}, ${userProfile.province}` 
@@ -100,56 +106,7 @@ export default function ProfileScreen({ navigation }) {
     );
   };
   
-  // (*** ส่วนจัดการรายการคำสั่งซื้อของคุณ ***)
-  // (อันนี้เป็น Mock Data เพราะยังไม่มี API ดึง Orders ที่ตรงกับ User ID)
-  const renderOrders = () => {
-    const mockOrders = [
-      { id: 'O001', type: 'sell', grade: 'AA', amount: 500, price: 35.5, status: 'open' },
-      { id: 'O002', type: 'buy', grade: 'A', amount: 1000, price: 30.0, status: 'matched' },
-      { id: 'O003', type: 'sell', grade: 'B', amount: 200, price: 25.0, status: 'closed' },
-    ];
-    
-    // (*** ต้องดึงข้อมูลจริงจาก API /orderApi/users/:userId/orders ***)
-    
-    return (
-      <View style={styles.listSection}>
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tabButton, showOrders && styles.tabButtonActive]}
-            onPress={() => setShowOrders(true)}
-          >
-            <Text style={[styles.tabText, showOrders && styles.tabTextActive]}>ประกาศของฉัน</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tabButton, !showOrders && styles.tabButtonActive]}
-            onPress={() => setShowOrders(false)}
-          >
-            <Text style={[styles.tabText, !showOrders && styles.tabTextActive]}>คำเสนอซื้อ/ขาย</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* --- Mock List --- */}
-        <View style={styles.orderList}>
-          {mockOrders.filter(o => o.type === (showOrders ? 'sell' : 'buy')).map(order => (
-            <View key={order.id} style={styles.orderItem}>
-              <Text style={styles.orderGrade}>{order.grade}</Text>
-              <Text style={styles.orderDetail}>
-                {order.type === 'sell' ? 'ขาย' : 'รับซื้อ'} {order.amount} กก.
-              </Text>
-              <Text style={styles.orderPrice}>{order.price} บ./กก.</Text>
-              <View style={[styles.statusBadge, styles[`status_${order.status}`]]}>
-                <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
-              </View>
-            </View>
-          ))}
-          {mockOrders.filter(o => o.type === (showOrders ? 'sell' : 'buy')).length === 0 && (
-            <Text style={styles.emptyOrderText}>ไม่มีรายการในตอนนี้</Text>
-          )}
-        </View>
-        
-      </View>
-    );
-  }
+  // 📍 renderOrders ถูกลบออก
 
   // --- (Logout Function) ---
   const handleLogout = () => {
@@ -160,9 +117,8 @@ export default function ProfileScreen({ navigation }) {
         { text: "ยกเลิก", style: "cancel" },
         { 
           text: "ยืนยัน", 
-          onPress: () => {
-            // (*** ตรงนี้ต้องเคลียร์ Token / User State ในระบบจริง ***)
-            // (ตอนนี้แค่ navigate กลับหน้า Login)
+          onPress: async () => {
+            await AsyncStorage.clear();
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           } 
         }
@@ -178,7 +134,7 @@ export default function ProfileScreen({ navigation }) {
 
         {renderUserInfo()}
 
-        {renderOrders()} 
+        {/* 📍 ส่วนแสดงรายการถูกลบออก */}
         
         <TouchableOpacity style={styles.editButton}>
             <Ionicons name="create-outline" size={20} color="#1E9E4F" />
@@ -256,26 +212,6 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 16, color: '#D32F2F', textAlign: 'center' },
   retryButton: { backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 10 },
   retryButtonText: { color: '#1E9E4F', fontWeight: 'bold' },
-  
-  // Order/Listing Section styles (Mock)
-  listSection: { backgroundColor: '#FFFFFF', borderRadius: 15, padding: 15, marginBottom: 20, elevation: 2 },
-  tabContainer: { flexDirection: 'row', marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  tabButtonActive: { borderBottomWidth: 3, borderBottomColor: '#1E9E4F' },
-  tabText: { fontSize: 16, color: '#888' },
-  tabTextActive: { color: '#1E9E4F', fontWeight: 'bold' },
-  
-  orderList: { marginTop: 10 },
-  orderItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  orderGrade: { fontSize: 16, fontWeight: 'bold', width: 50 },
-  orderDetail: { flex: 1, fontSize: 14, color: '#555' },
-  orderPrice: { fontSize: 16, fontWeight: 'bold', color: '#333', width: 70, textAlign: 'right' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 15, marginLeft: 10 },
-  status_open: { backgroundColor: '#FFF3E0' },
-  status_matched: { backgroundColor: '#E8F5E9' },
-  status_closed: { backgroundColor: '#F0F0F0' },
-  statusText: { fontSize: 12, fontWeight: 'bold' },
-  emptyOrderText: { textAlign: 'center', color: '#AAA', paddingVertical: 20 },
   
   // Action Buttons
   editButton: {
