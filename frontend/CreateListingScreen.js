@@ -48,7 +48,8 @@ export default function CreateListingScreen({ navigation }) {
     };
     
     try {
-      const response = await fetch(`${API_BASE_URL}/orders`, {
+      // (*** แก้ไข path ตรงนี้ ***)
+      const response = await fetch(`${API_BASE_URL}/orderApi/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

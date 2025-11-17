@@ -16,6 +16,10 @@ export interface Order {
   createdAt?: Date;
   matchedAt?: Date | null;
 
+  // (เพิ่ม 2 fields นี้ เพื่อเก็บข้อมูลจาก Frontend)
+  deliveryDate?: string | null;
+  details?: string | null;
+
   suggestedAvgPrice?: number | null;
   priceStatus?: PriceStatus;
   priceDiffPercent?: number | null;

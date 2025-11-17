@@ -45,8 +45,8 @@ export default function LoginScreen({ navigation }) {
     
     try {
       // (C) ยิง API ไปที่ Backend
-      // (*** เพื่อนคุณต้องสร้าง Endpoint นี้! ***)
-      const response = await fetch(`${API_BASE_URL}/login`, { 
+      // (*** แก้ไข path ตรงนี้ ***)
+      const response = await fetch(`${API_BASE_URL}/usersApi/login`, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

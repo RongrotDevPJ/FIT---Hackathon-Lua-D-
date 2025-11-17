@@ -48,7 +48,8 @@ export default function CreateBidScreen({ navigation }) {
     };
     
     try {
-      const response = await fetch(`${API_BASE_URL}/orders`, { 
+      // (*** แก้ไข path ตรงนี้ ***)
+      const response = await fetch(`${API_BASE_URL}/orderApi/orders`, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +176,7 @@ export default function CreateBidScreen({ navigation }) {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
+            <Text style={styles.submitButtonText}>ยืนันการสร้างประกาศรับซื้อ</Text>
           )}
         </TouchableOpacity>
       </View>

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import {
-  createUser,
+  // ลบ createUser ออก เพราะไม่ได้ใช้แล้ว
   getUserById,
   updateUser,
   deleteUser,
@@ -58,7 +58,7 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
-// POST /users  -> สมัคร
+// POST /users  -> สมัคร (Frontend เรียกใช้ Endpoint นี้)
 router.post("/users", async (req: Request, res: Response) => {
   try {
     const { name, phone, role, province, amphoe, password } = req.body ?? {};
@@ -137,17 +137,6 @@ router.get("/:id", async (req, res, next): Promise<void> => {
   }
 });
 
-
-/** POST /users */
-router.post("/", async (req, res, next) =>  {
-  try {
-    const payload = req.body as Omit<User, "id" | "createdAt" | "updatedAt">;
-    const created = await createUser(payload);
-    res.status(201).json(created);
-  } catch (e) {
-    next(e);
-  }
-});
 
 /** PATCH /users/:id */
 router.patch("/:id", async (req, res, next) => {

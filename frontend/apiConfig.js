@@ -1,22 +1,16 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-// --- (นี่คือการตั้งค่า API ของคุณ) ---
+// --- (นี่คือการตั้งค่า API ของคุณ - สำหรับ Emulator) ---
 const API_PORT = 5001; // Port ของ Firebase Emulator
-const API_PATH = '/lua-database/us-central1/api'; // Path API จาก Log
+// Path ที่ถูกต้องคือ /PROJECT_ID/REGION (ตามการตั้งค่าใน firebase.json)
+const API_PATH = '/lua-database/asia-southeast1'; 
 // ------------------------------------
 
 /**
  * ฟังก์ชันนี้จะ "คำนวณ" IP ที่ถูกต้องให้เราอัตโนมัติ
- * - ถ้าเป็นเว็บ (Web) 
- * - หรือ iOS Simulator 
- * ...จะใช้ 'localhost'
- *
- * - ถ้าเป็น Android Emulator
- * ...จะใช้ '10.0.2.2' (IP พิเศษของ Android)
- *
- * - ถ้าเป็น Expo Go (มือถือจริง)
- * ...จะดึง LAN IP ของคอมคุณ (เช่น 192.168.1.10) มาใช้
+ * - สำหรับ Android Emulator จะใช้ '10.0.2.2'
+ * - สำหรับ iOS Simulator/Web จะใช้ 'localhost'
  */
 const getApiHost = () => {
   // 1. ตรวจจับ OS
@@ -44,7 +38,7 @@ const getApiHost = () => {
   return host;
 };
 
-// 5. สร้าง URL ทั้งหมด
+// 5. สร้าง URL ทั้งหมด (ใช้ HTTP)
 const host = getApiHost();
 export const API_BASE_URL = `http://${host}:${API_PORT}${API_PATH}`;
 
