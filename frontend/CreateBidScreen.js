@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
-  TextInput, ScrollView, Platform, Alert // <-- (Alert กับ Platform ต้องมี)
+  TextInput, ScrollView, Platform, Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
+
+// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
+import { API_BASE_URL } from './apiConfig';
 
 export default function CreateBidScreen({ navigation }) {
   const [grade, setGrade] = useState(''); 
@@ -12,70 +16,116 @@ export default function CreateBidScreen({ navigation }) {
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
 
-  // --- [ อัปเกรด! ] ฟังก์ชัน "ยืนยัน" (ฉบับ 2 ระบบ) ---
-  const handleSubmit = () => {
-    // (Validation)
-    if (!grade || !weight || !price || !deliveryDate) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, วันที่ต้องการ) ให้ครบถ้วน');
+  // --- [ 📍 เพิ่ม State ที่ Backend ต้องการ ] ---
+  const [province, setProvince] = useState('');
+  const [amphoe, setAmphoe] = useState('');   
+  
+  // (สำคัญ! ใส่ ID ปลอมไปก่อน)
+  const [ownerId, setOwnerId] = useState('TEMP_BUYER_ID_456'); 
+
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    
+    if (!grade || !weight || !price || !deliveryDate || !province || !amphoe) {
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, จังหวัด, อำเภอ, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
-    
-    console.log('Submitting Bid:', { grade, weight, price, deliveryDate, details });
 
-    // --- [ นี่คือ "ทางแยก" ของปุ่ม "ตกลง"] ---
-    if (Platform.OS === 'web') {
-      // (ใช้ window.alert)
-      window.alert('ประกาศรับซื้อสำเร็จ!\nประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว');
-      navigation.goBack();
-    } else {
-      // (ใช้ Alert.alert สวยๆ เหมือนเดิม)
+    if (loading) return;
+    setLoading(true);
+    
+    const payload = {
+      type: 'buy', // (นี่คือ "ประกาศรับซื้อ")
+      ownerId: ownerId, 
+      province: province,
+      amphoe: amphoe,
+      grade: grade,
+      amountKg: Number(weight),       
+      requestedPrice: Number(price),  
+      deliveryDate: deliveryDate,
+      details: details,
+    };
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders`, { 
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+
       Alert.alert(
           'ประกาศรับซื้อสำเร็จ', 
           'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
           [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
       );
+      
+    } catch (error) {
+      console.error('Error submitting bid:', error);
+      Alert.alert('เกิดข้อผิดพลาด', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
-        {/* ... (JSX/Styles ที่เหลือ... เหมือนเดิมเป๊ะ) ... */}
         
+        {/* --- (ส่วนเลือกเกรด) --- */}
         <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
-          {/* (6 เกรด... ถูกต้อง) */}
-          <TouchableOpacity style={[styles.gradeButton, grade === '2A' && styles.gradeButtonActive]} onPress={() => setGrade('2A')}>
-            <Text style={[styles.gradeCircle, styles.grade2A]}>2A</Text>
-            <Text style={styles.gradeText}>เกรด 2A</Text>
-            <Text style={styles.gradeSubText}>พรีเมี่ยม (AA)</Text>
+          <TouchableOpacity
+            style={[styles.gradeButton, grade === 'AA' && styles.gradeButtonActive]}
+            onPress={() => setGrade('AA')}
+          >
+            <Text style={[styles.gradeCircle, styles.gradeAA]}>AA</Text>
+            <Text style={styles.gradeText}>เกรด AA</Text>
+            <Text style={styles.gradeSubText}>พรีเมี่ยม</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.gradeButton, grade === '1A' && styles.gradeButtonActive]} onPress={() => setGrade('1A')}>
-            <Text style={[styles.gradeCircle, styles.grade1A]}>1A</Text>
-            <Text style={styles.gradeText}>เกรด 1A</Text>
-            <Text style={styles.gradeSubText}>คุณภาพดี (A)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]} onPress={() => setGrade('A')}>
+          <TouchableOpacity
+            style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]}
+            onPress={() => setGrade('A')}
+          >
             <Text style={[styles.gradeCircle, styles.gradeA]}>A</Text>
             <Text style={styles.gradeText}>เกรด A</Text>
-            <Text style={styles.gradeSubText}>คุณภาพกลาง</Text>
+            <Text style={styles.gradeSubText}>คุณภาพดี</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]} onPress={() => setGrade('B')}>
+          <TouchableOpacity
+            style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]}
+            onPress={() => setGrade('B')}
+          >
             <Text style={[styles.gradeCircle, styles.gradeB]}>B</Text>
             <Text style={styles.gradeText}>เกรด B</Text>
             <Text style={styles.gradeSubText}>มาตรฐานทั่วไป</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]} onPress={() => setGrade('C')}>
+          <TouchableOpacity
+            style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]}
+            onPress={() => setGrade('C')}
+          >
             <Text style={[styles.gradeCircle, styles.gradeC]}>C</Text>
             <Text style={styles.gradeText}>เกรด C</Text>
             <Text style={styles.gradeSubText}>คุณภาพรอง</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]} onPress={() => setGrade('CC')}>
+          <TouchableOpacity
+            style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]}
+            onPress={() => setGrade('CC')}
+          >
             <Text style={[styles.gradeCircle, styles.gradeCC]}>CC</Text>
             <Text style={styles.gradeText}>เกรด CC</Text>
             <Text style={styles.gradeSubText}>ลำไยร่วง/คละ</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* === ฟิลด์ตัวเลข === */}
         <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
@@ -86,6 +136,18 @@ export default function CreateBidScreen({ navigation }) {
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
+
+        {/* --- [ 📍 เพิ่มช่องกรอก จังหวัด/อำเภอ ] --- */}
+        <Text style={styles.label}>จังหวัด</Text>
+        <View style={styles.inputContainer}>
+          <TextInput style={styles.input} placeholder="เช่น เชียงใหม่, ลำพูน" onChangeText={setProvince} value={province} />
+        </View>
+        <Text style={styles.label}>อำเภอ</Text>
+        <View style={styles.inputContainer}>
+          <TextInput style={styles.input} placeholder="เช่น เมือง, สารภี" onChangeText={setAmphoe} value={amphoe} />
+        </View>
+
+        {/* === ฟิลด์วันที่และรายละเอียด === */}
         <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
@@ -102,21 +164,35 @@ export default function CreateBidScreen({ navigation }) {
           />
         </View>
       </ScrollView>
+
+      {/* --- (ปุ่ม Submit) --- */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
+        <TouchableOpacity 
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>ยืนยันการสร้างประกาศรับซื้อ</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
 
-// --- (Styles... เหมือนเดิมเป๊ะ) ---
+// --- (Styles) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
   label: { fontSize: 16, fontWeight: 'bold', color: '#333', marginTop: 15, marginBottom: 10 },
-  gradeContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gradeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap', 
+    justifyContent: 'space-between', 
+  },
   gradeButton: {
     width: '30%', 
     alignItems: 'center',
@@ -146,12 +222,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 10,
   },
-  grade2A: { backgroundColor: '#D32F2F' }, 
-  grade1A: { backgroundColor: '#1E9E4F' }, 
-  gradeA:  { backgroundColor: '#4CAF50' }, 
+  gradeAA: { backgroundColor: '#D32F2F' }, 
+  gradeA:  { backgroundColor: '#1E9E4F' }, 
   gradeB:  { backgroundColor: '#0D6EfD' }, 
   gradeC:  { backgroundColor: '#FFA000' }, 
   gradeCC: { backgroundColor: '#616161' }, 
+  
   gradeText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   gradeSubText: { fontSize: 12, color: '#888' },
   inputContainer: {
@@ -168,5 +244,8 @@ const styles = StyleSheet.create({
   inputMultiline: { height: 100, textAlignVertical: 'top', paddingTop: 15 },
   footer: { backgroundColor: '#FFFFFF', padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
   submitButton: { backgroundColor: '#1E9E4F', paddingVertical: 15, borderRadius: 8, alignItems: 'center' },
+  submitButtonDisabled: {
+    backgroundColor: '#A5D6A7',
+  },
   submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 });

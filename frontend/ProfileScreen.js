@@ -1,33 +1,68 @@
-import React from 'react';
+import React, { 
+  useState, 
+  useEffect
+} from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, 
-  TouchableOpacity, Image, Alert,
-  Platform // <-- [1. Import] เพิ่ม Platform
+  TouchableOpacity, Alert, Platform,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons'; // (ผมเปิดไอคอนให้เลย)
+import { Ionicons } from '@expo/vector-icons'; 
+
+// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
+
+import { API_BASE_URL } from './apiConfig';
+
+// [ 📍 ID ของ User (ชั่วคราว) ]
+// (สำคัญ! ใส่ ID ปลอมไปก่อน)
+const MY_USER_ID = 'TEMP_USER_ID_123'; 
 
 export default function ProfileScreen({ navigation }) {
-  const userName = "สมชาย มั่นคง";
-  const userType = "เกษตรกร/ผู้ขาย"; // (อันนี้เราต้องแก้ Logic ทีหลังว่ามาจาก User Type ไหน)
+  
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // --- [2. อัปเกรด!] ฟังก์ชัน "ดีดตัว" (ฉบับ 2 ระบบ) ---
-  const handleLogout = () => {
-    // --- [ถ้าเป็น "เว็บ"] ---
-    if (Platform.OS === 'web') {
-      // (ใช้ window.confirm... มันจะเด้งป๊อปอัพ "ตกลง/ยกเลิก" ของเบราว์เซอร์)
-      if (window.confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
-        // (ถ้าผู้ใช้กด "ตกลง")
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' }], 
-        });
+  const fetchUserProfile = async () => {
+    if (!MY_USER_ID) {
+      setError("ไม่ได้ระบุ User ID");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${MY_USER_ID}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'ไม่สามารถดึงข้อมูลผู้ใช้ได้');
       }
-      // (ถ้าผู้ใช้กด "ยกเลิก"... มันก็จะไม่ทำอะไร... ซึ่งถูกต้องแล้ว)
-    } 
-    // --- [ถ้าเป็น "มือถือ"] ---
-    else {
-      // (ใช้ Alert.alert สวยๆ เหมือนเดิม)
+      
+      setUser(result);
+
+    } catch (e) {
+      console.error("Failed to fetch profile:", e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []); // (ทำครั้งเดียว)
+
+  
+  // (ฟังก์ชัน Logout... เหมือนเดิม)
+  const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }
+    } else {
       Alert.alert(
         "ออกจากระบบ", 
         "คุณต้องการออกจากระบบใช่หรือไม่?",
@@ -47,13 +82,49 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const formatUserRole = (role) => {
+    if (role === 'farmer') return 'เกษตรกร/ผู้ขาย';
+    if (role === 'buyer') return 'ผู้ซื้อ';
+    if (role === 'admin') return 'ผู้ดูแลระบบ';
+    return 'ไม่ระบุ';
+  };
+
+  const renderProfileHeader = () => {
+    if (loading) {
+      return (
+        <View style={styles.profileHeader}>
+          <ActivityIndicator size="small" color="#1E9E4F" />
+        </View>
+      );
+    }
+
+    if (error || !user) {
+      return (
+        <View style={styles.profileHeader}>
+          <Text style={styles.userName}>เกิดข้อผิดพลาด</Text>
+          <Text style={styles.userType}>{error || 'ไม่พบข้อมูลผู้ใช้'}</Text>
+          <TouchableOpacity onPress={fetchUserProfile} style={{ marginTop: 10 }}>
+            <Text style={{ color: '#0D6EfD' }}>ลองอีกครั้ง</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // (ถ้าสำเร็จ... แสดงข้อมูลจริง)
+    return (
+      <View style={styles.profileHeader}>
+        <Text style={styles.userName}>{user.name}</Text>
+        <Text style={styles.userType}>{formatUserRole(user.role)}</Text>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
-        <View style={styles.profileHeader}>
-          <Text style={styles.userName}>{userName}</Text>
-          <Text style={styles.userType}>{userType}</Text>
-        </View>
+        
+        {renderProfileHeader()} 
+
         <View style={styles.menuContainer}>
           <TouchableOpacity style={styles.menuItem}>
             <Ionicons name="person-outline" size={24} color="#333" />
@@ -84,7 +155,7 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-// --- Styles (ฉบับเต็ม + ไอคอน) ---
+// --- (Styles) ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   container: { flex: 1 },
@@ -94,6 +165,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
+    minHeight: 100, 
+    justifyContent: 'center', 
   },
   userName: { fontSize: 22, fontWeight: 'bold', color: '#333' },
   userType: { fontSize: 16, color: '#1E9E4F', fontWeight: 'bold' },
@@ -107,10 +180,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F0F0F0',
   },
   menuText: { 
-    flex: 1, // ดันลูกศรไปทางขวา
+    flex: 1, 
     fontSize: 16, 
     color: '#333',
-    marginLeft: 15, // (เว้นระยะจากไอคอน)
+    marginLeft: 15, 
   },
   logoutContainer: { padding: 20, marginTop: 20 },
   logoutButton: {
