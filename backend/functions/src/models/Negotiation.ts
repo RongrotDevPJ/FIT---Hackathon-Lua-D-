@@ -1,29 +1,30 @@
-import { GradeType, PriceStatus } from './Order';
+import { GradeType, PriceStatus } from "./Order";
 
-export type NegotiationStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
+export type NegotiationStatus = "open" | "accepted" | "rejected" | "cancelled";
+export type NegotiationSide = "factory" | "farmer";
 
 export interface Negotiation {
-  id: string;                       // Firestore document id
-  orderId: string;                 
+  id?: string;   // ← optional ตอนสร้างใหม่
 
-  factoryId: string;                
-  farmerId: string;                 
+  orderId: string;
+
+  factoryId: string;
+  farmerId: string;
 
   province: string;
   amphoe: string;
   grade: GradeType | string;
 
-  // ราคาที่เกี่ยวข้องกับดีลนี้
-  requestedPrice: number;           
-  offeredPrice: number;             
-  finalPrice?: number | null;       
+  requestedPrice: number;     // ราคาตั้งต้นจาก order
+  offeredPrice: number;       // ราคาที่ถูกเสนอในรอบล่าสุด
+  finalPrice?: number | null; // ราคาที่ตกลงสุดท้าย (ตอน accepted)
 
-  // เทียบกับราคากลาง
   refAvgPrice?: number | null;
-  priceStatus?: PriceStatus;        // below_ref / normal / above_ref / no_ref
+  priceStatus?: PriceStatus;
 
   status: NegotiationStatus;
 
+  lastSide?: NegotiationSide; // รอบล่าสุดใครเป็นคนเสนอ (ฝั่งไหน)
   createdAt: FirebaseFirestore.Timestamp | Date;
   updatedAt: FirebaseFirestore.Timestamp | Date;
 }
