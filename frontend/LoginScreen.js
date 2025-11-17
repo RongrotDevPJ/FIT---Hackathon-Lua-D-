@@ -5,6 +5,7 @@ import {
   ActivityIndicator // [ 📍 1. Import ]
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // <--- 📍 เพิ่ม Import
 
 // [ 📍 2. ตั้งค่า API URL (สำหรับ Web) ]
 // (เพิ่มบรรทัดนี้แทน)
@@ -64,10 +65,10 @@ export default function LoginScreen({ navigation }) {
       // (D) ถ้าสำเร็จ...
       console.log('Login Success:', result);
       
-      // (*** ตรงนี้สำคัญมาก ***)
-      // (คุณต้องเก็บ Token หรือ User Data ที่ได้จาก API ไว้ใน State กลาง)
-      // (เช่น AsyncStorage, Context API, Redux)
-      // (ตอนนี้เราจะข้ามไปก่อน แล้วดีดตัวไปหน้าหลักเลย)
+      // 📍 บันทึก User ID, Role, และ Token ลงใน AsyncStorage
+      await AsyncStorage.setItem('userToken', result.token);
+      await AsyncStorage.setItem('userId', result.user.id);
+      await AsyncStorage.setItem('userRole', result.user.role);
       
       // (E) แยกหน้าตาม Role ที่ได้จาก API (ไม่ใช่ userType ที่เลือก)
       const loggedInRole = result.user.role; // (สมมติ API คืนค่ามาแบบนี้)

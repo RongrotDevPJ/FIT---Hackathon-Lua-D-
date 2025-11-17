@@ -1,5 +1,47 @@
 {
-  "plugins": [
-    "expo-asset"
-  ]
+  "expo": {
+    "name": "Longan Link",
+    "slug": "longan-link-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    
+
+    "icon": "./logo/Logo.png", 
+    "userInterfaceStyle": "light",
+    
+    "splash": {
+      "image": "./logo/Logo.png", 
+      "resizeMode": "contain",
+      "backgroundColor": "#1E9E4F"
+    },
+    
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    
+    "ios": {
+      "supportsTablet": true
+    },
+    
+
+    "android": {
+
+      "usesCleartextTraffic": true, 
+      "adaptiveIcon": {
+        "foregroundImage": "./logo/Logo.png",
+        "backgroundColor": "#FFFFFF"
+      },
+
+      "package": "com.lua.longanlink"
+    },
+    
+    "web": {
+      "favicon": "./logo/Logo.png"
+    },
+    
+
+    "plugins": [
+      "expo-asset"
+    ]
+  }
 }

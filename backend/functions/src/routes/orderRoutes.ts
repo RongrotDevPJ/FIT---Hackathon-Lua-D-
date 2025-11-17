@@ -79,6 +79,7 @@ router.get("/orders/my", async (req: Request, res: Response): Promise<void> => {
       .where("ownerId", "==", String(ownerId));
 
     if (type)     ref = ref.where("type", "==", String(type));                 // "sell" | "buy"
+    // 📍 แก้ไข: ลบ filter status ออก เพื่อให้แสดงรายการทั้งหมด
     if (status)   ref = ref.where("status", "==", String(status));             // "open" | "matched" | "closed"
     if (grade)    ref = ref.where("grade", "==", String(grade).toUpperCase()); // "AA" | "A" | "B" | "C" | "CC"
     if (province) ref = ref.where("province", "==", String(province));
@@ -92,13 +93,26 @@ router.get("/orders/my", async (req: Request, res: Response): Promise<void> => {
     }
 
     const snap = await ref.get();
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String เพื่อป้องกัน 500 Error
+    const items = snap.docs.map(d => {
+        const data = d.data();
+        return { 
+            id: d.id, 
+            ...data,
+            // แปลง Timestamp ใน Firestore เป็น ISO String
+            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+            matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
+        }
+    });
+    
     const nextCursor = snap.docs.length ? snap.docs[snap.docs.length - 1].id : null;
 
     res.json({ items, nextCursor });
     return;
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    console.error("Error in /orders/my:", e); // เพิ่ม log
+    res.status(500).json({ error: e.message ?? "Internal Server Error" });
     return;
   }
 });
@@ -126,7 +140,16 @@ router.get("/orders", async (req: Request, res: Response): Promise<void> => {
     }
 
     const snap = await ref.get();
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String
+    const items = snap.docs.map(d => {
+        const data = d.data();
+        return { 
+            id: d.id, 
+            ...data,
+            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+            matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
+        }
+    });
     const nextCursor = snap.docs.length ? snap.docs[snap.docs.length - 1].id : null;
 
     res.json({ items, nextCursor });
@@ -162,8 +185,17 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response): Prom
       .orderBy("updatedAt", "desc")
       .limit(limit)
       .get();
-
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String
+    const items = snap.docs.map(d => {
+        const data = d.data();
+        return { 
+            id: d.id, 
+            ...data,
+            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+            updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
+        }
+    });
     res.json({ items });
     return;
   } catch (e: any) {

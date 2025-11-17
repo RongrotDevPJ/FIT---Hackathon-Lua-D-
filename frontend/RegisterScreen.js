@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // [ 📍 แก้ไข! ] เปลี่ยนตัว Import
-import { USERS_API_URL } from './apiConfig';
+import { API_BASE_URL } from './apiConfig'; // <-- แก้ไขเป็น API_BASE_URL
 
 export default function RegisterScreen({ navigation }) {
   const [userType, setUserType] = useState('farmer');
@@ -15,6 +15,10 @@ export default function RegisterScreen({ navigation }) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState(''); 
+  
+  // 📍 NEW: เพิ่ม State สำหรับจังหวัดและอำเภอ
+  const [province, setProvince] = useState(''); 
+  const [amphoe, setAmphoe] = useState(''); 
 
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +40,11 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
     
+    // 📍 NEW: สามารถอนุญาตให้ province/amphoe เป็นค่าว่างได้ตาม Backend แต่ควรแจ้งเตือน
+    // if (province.trim() === '' || amphoe.trim() === '') {
+    //   Alert.alert('คำเตือน', 'กรุณากรอกจังหวัดและอำเภอเพื่อการจับคู่ที่ดียิ่งขึ้น');
+    // }
+    
     if (loading) return;
     setLoading(true);
 
@@ -44,11 +53,14 @@ export default function RegisterScreen({ navigation }) {
       role: userType, // 'farmer' หรือ 'buyer'
       phone: phone.trim(),
       password: password, 
+      // 📍 NEW: เพิ่มจังหวัดและอำเภอใน Payload
+      province: province.trim(), 
+      amphoe: amphoe.trim(),
     };
 
     try {
-      // [ 📍 แก้ไข! ] เปลี่ยน URL ให้ถูกต้อง
-      const response = await fetch(`${USERS_API_URL}/users`, { 
+      // [ 📍 แก้ไข! ] เปลี่ยน URL ให้ถูกต้อง (เพิ่ม /usersApi/)
+      const response = await fetch(`${API_BASE_URL}/usersApi/users`, { // <-- แก้ไข Endpoint
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,6 +126,25 @@ export default function RegisterScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* === 📍 NEW: จังหวัด === */}
+          <Text style={styles.label}>จังหวัด</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="เช่น เชียงใหม่, ลำพูน" 
+            value={province} 
+            onChangeText={setProvince} 
+          />
+          
+          {/* === 📍 NEW: อำเภอ === */}
+          <Text style={styles.label}>อำเภอ</Text>
+          <TextInput 
+            style={styles.input} 
+            placeholder="เช่น เมือง, สารภี" 
+            value={amphoe} 
+            onChangeText={setAmphoe} 
+          />
+
           <Text style={styles.label}>ชื่อ-นามสกุล</Text>
           <TextInput style={styles.input} placeholder="กรอกชื่อ-นามสกุล" value={name} onChangeText={setName} />
           <Text style={styles.label}>เบอร์โทรศัพท์ (ใช้เข้าระบบ)</Text>
