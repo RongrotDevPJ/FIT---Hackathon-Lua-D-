@@ -83,7 +83,8 @@ export default function MarketScreen() {
     setError(null);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/orders?status=open`);
+      // (*** แก้ไข path ตรงนี้ ***)
+      const response = await fetch(`${API_BASE_URL}/orderApi/orders?status=open`);
       
       if (!response.ok) {
         const errorText = await response.text();

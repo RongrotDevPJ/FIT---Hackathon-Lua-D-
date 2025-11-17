@@ -12,14 +12,16 @@ import {
 } from "../services/negotiationService";
 
 
-
 const router = Router();
 
 /** POST /orders — สร้างออเดอร์ + ประเมินราคากลาง */
 router.post("/orders", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { type, ownerId, province, amphoe, grade, amountKg, requestedPrice } = req.body ?? {};
-
+    const { 
+      type, ownerId, province, amphoe, grade, amountKg, requestedPrice,
+      deliveryDate, details // (เพิ่ม 2 field นี้)
+    } = req.body ?? {};
+    
     if (
       !type || !ownerId || !province || !amphoe || !grade ||
       requestedPrice === undefined || amountKg === undefined
@@ -42,6 +44,11 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       requestedPrice: Number(requestedPrice),
       status: "open",
       createdAt: new Date(),
+      
+      // (เพิ่ม 2 field นี้)
+      deliveryDate: deliveryDate ? String(deliveryDate) : null,
+      details: details ? String(details) : null,
+
       suggestedAvgPrice: evalResult.reference?.avgPrice ?? null,
       priceStatus: evalResult.status,
       priceDiffPercent: evalResult.diffPercent,

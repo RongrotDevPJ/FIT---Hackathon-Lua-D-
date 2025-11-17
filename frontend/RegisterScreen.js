@@ -6,14 +6,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// [ 📍 ลบ Firebase Client SDK ออก ]
-// import { auth, db } from './firebaseConfig'; 
-// import { createUserWithEmailAndPassword } from "firebase/auth";
-// import { doc, setDoc } from "firebase/firestore"; 
-
-// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
-// (เพิ่มบรรทัดนี้แทน)
-import { API_BASE_URL } from './apiConfig';
+// [ 📍 แก้ไข! ] เปลี่ยนตัว Import
+import { USERS_API_URL } from './apiConfig';
 
 export default function RegisterScreen({ navigation }) {
   const [userType, setUserType] = useState('farmer');
@@ -29,7 +23,6 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert('รหัสผ่านไม่ตรงกัน!'); 
       return;
     }
-    // (เพิ่มการเช็คที่เข้มงวดขึ้น)
     if (phone.trim().length < 10) {
        Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกเบอร์โทร 10 หลัก');
        return;
@@ -46,19 +39,16 @@ export default function RegisterScreen({ navigation }) {
     if (loading) return;
     setLoading(true);
 
-    // [ 📍 สร้าง Payload ]
-    // (Backend ต้องแก้ให้รับ password และไปสร้างใน Auth ด้วย)
     const payload = {
       name: name,
       role: userType, // 'farmer' หรือ 'buyer'
       phone: phone.trim(),
-      password: password, // (ส่ง password ให้ Backend)
+      password: password, 
     };
 
     try {
-      // [ 📍 ยิง API ไปที่ Backend ]
-      // (คุณอาจจะต้องให้เพื่อนแก้ Endpoint เป็น POST /register)
-      const response = await fetch(`${API_BASE_URL}/users`, { // (Endpoint POST /users)
+      // [ 📍 แก้ไข! ] เปลี่ยน URL ให้ถูกต้อง
+      const response = await fetch(`${USERS_API_URL}/users`, { 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +123,6 @@ export default function RegisterScreen({ navigation }) {
           <Text style={styles.label}>ยืนยันรหัสผ่าน</Text>
           <TextInput style={styles.input} placeholder="กรอกรหัสผ่านอีกครั้ง" secureTextEntry={true} value={confirmPassword} onChangeText={setConfirmPassword} />
 
-          {/* --- [ 📍 อัปเกรดปุ่ม Register ] --- */}
           <TouchableOpacity
             style={[styles.registerButton, loading && styles.registerButtonDisabled]}
             onPress={handleRegister}
