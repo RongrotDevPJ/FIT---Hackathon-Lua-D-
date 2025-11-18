@@ -23,19 +23,20 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      { "source": "/api/price/**", "function": "priceApi", "functionRegion": "asia-southeast1" },
-      { "source": "/api/order/**", "function": "orderApi", "functionRegion": "asia-southeast1" },
-      { "source": "/api/users/**", "function": "usersApi", "functionRegion": "asia-southeast1" },
-      { "source": "**", "destination": "/index.html" }
-    ]
-  },
+  "public": "public",
+  "ignore": [
+    "firebase.json",
+    "**/.*",
+    "**/node_modules/**"
+  ],
+  "rewrites": [
+    { "source": "/api/price/**", "function": "priceApi", "functionRegion": "asia-southeast1" },
+    { "source": "/api/order/**", "function": "orderApi", "functionRegion": "asia-southeast1" },
+    { "source": "/api/users/**", "function": "usersApi", "functionRegion": "asia-southeast1" },
+    { "source": "**", "destination": "/index.html" }
+  ]
+}
+,
   "emulators": {
     "functions": { "port": 5001 },
     "firestore": { "port": 8080 },
