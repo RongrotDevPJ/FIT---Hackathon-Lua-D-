@@ -37,39 +37,46 @@ export default function ListingDetailScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      // [ 📍 TODO: เชื่อมต่อ API สร้างห้องแชท/เจรจาตรงนี้ ]
-      // ตัวอย่าง: POST /negotiationApi/create
-      /*
-      const response = await fetch(`${API_BASE_URL}/negotiationApi/create`, {
+      // 📍 [FIX] เชื่อมต่อ API จริง (ยกเลิกตัวจำลอง)
+      // URL ต้องตรงกับ Backend: /orders/:id/negotiations
+      const apiUrl = `${API_BASE_URL}/orderApi/orders/${item.id}/negotiations`;
+      
+      console.log("Creating negotiation at:", apiUrl);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-           orderId: item.id,
-           buyerId: currentUserId,
-           sellerId: item.ownerId
+           actorId: currentUserId,           // คนที่กดปุ่ม (เรา)
+           offeredPrice: item.requestedPrice, // เริ่มต้นด้วยราคาที่เขาตั้งไว้
+           amountKg: item.amountKg           // จำนวนทั้งหมด
         })
       });
-      */
 
-      // จำลองว่าสำเร็จ (เพราะยังไม่มี API 100%)
-      setTimeout(() => {
-         Alert.alert(
-          'ส่งคำขอสำเร็จ!', 
-          'เริ่มการเจรจาเรียบร้อย ระบบจะพาคุณไปที่หน้าข้อเสนอ',
-          [
-            { 
-              text: 'ตกลง', 
-              onPress: () => {
-                // นำทางไปที่ Tab "รายการเจรจา" (MyBidsTab หรือ OffersTab)
-                // หมายเหตุ: อาจต้องปรับ navigate ให้ตรงกับโครงสร้าง Tab ของคุณ
-                navigation.navigate('BuyerApp', { screen: 'MyBidsTab' });
-              } 
-            }
-          ]
-        );
-      }, 1000);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'ไม่สามารถสร้างรายการเจรจาได้');
+      }
+
+      // ถ้าสำเร็จ ให้แจ้งเตือนและพาไปหน้า Offers
+      Alert.alert(
+        'ส่งคำขอสำเร็จ!', 
+        'เริ่มการเจรจาเรียบร้อย ระบบจะพาคุณไปที่หน้าข้อเสนอ',
+        [
+          { 
+            text: 'ตกลง', 
+            onPress: () => {
+                // นำทางไปที่หน้ารายการเจรจา
+                // หากคุณใช้ Tab Navigation อาจต้องปรับเส้นทาง เช่น navigation.navigate('BuyerApp', { screen: 'OffersTab' });
+                navigation.navigate('OffersScreen'); 
+            } 
+          }
+        ]
+      );
 
     } catch (error) {
+      console.error("Negotiation Error:", error);
       Alert.alert('เกิดข้อผิดพลาด', error.message);
     } finally {
       setLoading(false);
