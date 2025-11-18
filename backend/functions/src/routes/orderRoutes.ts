@@ -292,6 +292,10 @@ router.patch("/negotiations/:id", async (req: Request, res: Response) => {
   }
 });
 
+/** * GET /negotiations
+ * 📍 FIX: แปลง Timestamp เป็น ISO String ก่อนส่งกลับ
+ * เพื่อป้องกัน Error 500 หรือข้อมูลวันที่ไม่ถูกต้องที่หน้า OffersScreen 
+ */
 router.get("/negotiations", async (req: Request, res: Response) => {
   try {
     const { farmerId, buyerId } = req.query as any;
@@ -306,16 +310,27 @@ router.get("/negotiations", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "only_one_of_farmerId_or_buyerId" });
     }
 
-    let items;
+    let rawItems;
     if (farmerId) {
-      items = await listNegotiationsByFarmer(String(farmerId), limit);
+      rawItems = await listNegotiationsByFarmer(String(farmerId), limit);
     } else {
-      items = await listNegotiationsByBuyer(String(buyerId), limit);
+      rawItems = await listNegotiationsByBuyer(String(buyerId), limit);
     }
+
+    // ✅ [FIX] แปลง Timestamp เป็น ISO String
+    const items = rawItems.map((item: any) => ({
+        ...item,
+        createdAt: item.createdAt && typeof item.createdAt.toDate === 'function' 
+            ? item.createdAt.toDate().toISOString() 
+            : item.createdAt,
+        updatedAt: item.updatedAt && typeof item.updatedAt.toDate === 'function' 
+            ? item.updatedAt.toDate().toISOString() 
+            : item.updatedAt,
+    }));
 
     return res.json({ items });
   } catch (e: any) {
-    console.error(e);
+    console.error("Error in /negotiations:", e);
     return res.status(500).json({ error: e.message ?? "internal_error" });
   }
 });
