@@ -3,9 +3,9 @@ import { Platform, View, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons'; //
+import { Ionicons } from '@expo/vector-icons'; 
 
-// --- 1. Import ทุกหน้าจอ (ครบ!) ---
+// --- 1. Import ทุกหน้าจอ ---
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 
@@ -14,22 +14,22 @@ import HomeScreen from './HomeScreen';
 import CreateListingScreen from './CreateListingScreen'; 
 import OffersScreen from './OffersScreen'; 
 import ProfileScreen from './ProfileScreen'; 
-// (MyListingsScreen ไม่ได้ใช้แล้ว)
 
 // (บ้านผู้ซื้อ)
 import MarketScreen from './MarketScreen'; 
-import MyBidsScreen from './MyBidsScreen'; // 📍 [หมายเหตุ] ไฟล์นี้ไม่ได้ใช้ในแท็บแล้ว แต่ CreateBidScreen ยังใช้ชื่อนี้อยู่
 import CreateBidScreen from './CreateBidScreen'; 
-// (MyOrdersScreen ไม่ได้ใช้แล้ว)
 
-// (ห้องที่ใช้ร่วมกัน)
-import NewsScreen from './NewsScreen'; // <-- [สำคัญ!] ห้องข่าวสาร
+// (หน้ารายละเอียดที่เพิ่งสร้างใหม่!)
+import ListingDetailScreen from './ListingDetailScreen'; // <--- [เพิ่มบรรทัดนี้]
 
-// --- 2. สร้าง "กล่อง" ---
+// (ห้องข่าวสาร)
+import NewsScreen from './NewsScreen'; 
+
+// --- 2. สร้าง Navigator ---
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- 3. สร้าง "ปุ่มบวก" ลอย (ที่กลางเป๊ะ) ---
+// --- 3. ปุ่มบวกตรงกลาง ---
 const CustomTabButton = ({ children, onPress }) => (
   <TouchableOpacity
     style={{
@@ -57,7 +57,7 @@ const CustomTabButton = ({ children, onPress }) => (
   </TouchableOpacity>
 );
 
-// --- 4. "บ้านเกษตรกร" (5 แท็บ - [แก้แล้ว!]) ---
+// --- 4. Tab เกษตรกร ---
 function MainAppTabs() {
   return (
     <Tab.Navigator
@@ -66,14 +66,8 @@ function MainAppTabs() {
         headerTintColor: '#FFFFFF', 
         tabBarActiveTintColor: '#1E9E4F', 
         tabBarInactiveTintColor: '#888', 
-        tabBarLabelStyle: {
-          paddingBottom: Platform.OS === 'android' ? 8 : 0,
-          fontSize: 12,
-        },
-        tabBarStyle: {
-          height: Platform.OS === 'ios' ? 90 : 80, 
-          paddingBottom: Platform.OS === 'android' ? 10 : 0, 
-        }
+        tabBarLabelStyle: { paddingBottom: Platform.OS === 'android' ? 8 : 0, fontSize: 12 },
+        tabBarStyle: { height: Platform.OS === 'ios' ? 90 : 80, paddingBottom: Platform.OS === 'android' ? 10 : 0 }
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: 'หน้าหลัก', tabBarIcon: ({ color, size }) => (<Ionicons name="home-outline" color={color} size={size} />), }} />
@@ -83,40 +77,21 @@ function MainAppTabs() {
         component={CreateListingScreen}
         options={{ 
           title: 'ลงประกาศ',
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name="add" color="#FFFFFF" size={30} />
-          ),
-          tabBarButton: (props) => (
-            <CustomTabButton {...props} />
-          ),
+          tabBarIcon: ({ focused }) => (<Ionicons name="add" color="#FFFFFF" size={30} />),
+          tabBarButton: (props) => (<CustomTabButton {...props} />),
           tabBarLabel: () => null, 
         }}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault(); 
-            navigation.navigate('CreateListing'); 
-          },
+          tabPress: (e) => { e.preventDefault(); navigation.navigate('CreateListing'); },
         })}
       />
-      {/* --- [แก้แล้ว!] เปลี่ยน "รายการขาย" เป็น "ข่าวสาร" --- */}
-      <Tab.Screen 
-        name="NewsTab" 
-        component={NewsScreen} 
-        options={{ 
-          title: 'ข่าวสาร',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="newspaper-outline" color={color} size={size} />
-          ),
-        }} 
-      />
+      <Tab.Screen name="NewsTab" component={NewsScreen} options={{ title: 'ข่าวสาร', tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'โปรไฟล์', tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), }} />
     </Tab.Navigator>
   );
 }
 
-// --- 5. "บ้านผู้ซื้อ" (5 แท็บ - ข่าวสาร) ---
-// [ 📍📍📍 START: EDIT 📍📍📍 ]
-// แก้ไข 'MyBidsTab'
+// --- 5. Tab ผู้ซื้อ ---
 function BuyerAppTabs() {
   return (
     <Tab.Navigator
@@ -125,110 +100,58 @@ function BuyerAppTabs() {
         headerTintColor: '#FFFFFF', 
         tabBarActiveTintColor: '#1E9E4F', 
         tabBarInactiveTintColor: '#888', 
-        tabBarLabelStyle: {
-          paddingBottom: Platform.OS === 'android' ? 8 : 0,
-          fontSize: 12,
-        },
-        tabBarStyle: {
-          height: Platform.OS === 'ios' ? 90 : 80, 
-          paddingBottom: Platform.OS === 'android' ? 10 : 0, 
-        }
+        tabBarLabelStyle: { paddingBottom: Platform.OS === 'android' ? 8 : 0, fontSize: 12 },
+        tabBarStyle: { height: Platform.OS === 'ios' ? 90 : 80, paddingBottom: Platform.OS === 'android' ? 10 : 0 }
       }}
     >
       <Tab.Screen name="MarketTab" component={MarketScreen} options={{ title: 'ตลาดลำไย', tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), }} />
-      
-      {/* --- [ 📍 FIXED! ] --- */}
-      {/* เปลี่ยนจาก MyBidsScreen เป็น OffersScreen เพราะ OffersScreen รองรับทั้ง 2 role */}
-      <Tab.Screen 
-        name="MyBidsTab" 
-        component={OffersScreen}  // <-- แก้ไขตรงนี้
-        options={{ 
-          title: 'รายการเจรจา', // <-- แก้ไขชื่อ Title
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbox-ellipses-outline" color={color} size={size} />
-          ), 
-        }} 
-      />
-      {/* ---------------------- */}
-
+      <Tab.Screen name="MyBidsTab" component={OffersScreen} options={{ title: 'รายการเจรจา', tabBarIcon: ({ color, size }) => (<Ionicons name="chatbox-ellipses-outline" color={color} size={size} />), }} />
       <Tab.Screen
         name="PostBidTab"
         component={CreateBidScreen}
         options={{ 
           title: 'โพสต์รับซื้อ',
-          tabBarIcon: ({ focused }) => (
-            <Ionicons name="add" color="#FFFFFF" size={30} />
-          ),
-          tabBarButton: (props) => (
-            <CustomTabButton {...props} />
-          ),
+          tabBarIcon: ({ focused }) => (<Ionicons name="add" color="#FFFFFF" size={30} />),
+          tabBarButton: (props) => (<CustomTabButton {...props} />),
           tabBarLabel: () => null, 
         }}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault(); 
-            navigation.navigate('CreateBid'); 
-          },
+          tabPress: (e) => { e.preventDefault(); navigation.navigate('CreateBid'); },
         })}
       />
-      {/* --- (แท็บข่าวสาร - เหมือนกัน) --- */}
-      <Tab.Screen 
-        name="NewsTab" 
-        component={NewsScreen} 
-        options={{ 
-          title: 'ข่าวสาร',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="newspaper-outline" color={color} size={size} />
-          ),
-        }} 
-      />
+      <Tab.Screen name="NewsTab" component={NewsScreen} options={{ title: 'ข่าวสาร', tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'โปรไฟล์', tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), }} />
     </Tab.Navigator>
   );
 }
-// [ 📍📍📍 END: EDIT 📍📍📍 ]
 
-
-// --- 6. App หลัก (ฉบับสมบูรณ์) ---
+// --- 6. App หลัก ---
 export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator>
         
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="Register" 
-          component={RegisterScreen} 
-          options={{ 
-            title: 'สร้างบัญชีใหม่',
-            presentation: 'modal',
-            headerStyle: { backgroundColor: '#1E9E4F' },
-            headerTintColor: '#FFFFFF',
-          }} 
-        />
+        <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'สร้างบัญชีใหม่', presentation: 'modal', headerStyle: { backgroundColor: '#1E9E4F' }, headerTintColor: '#FFFFFF', }} />
+        
         <Stack.Screen name="MainApp" component={MainAppTabs} options={{ headerShown: false }} />
         <Stack.Screen name="BuyerApp" component={BuyerAppTabs} options={{ headerShown: false }} />
-        <Stack.Screen 
-          name="CreateListing" 
-          component={CreateListingScreen} 
-          options={{ 
-            title: 'ลงประกาศขาย',
-            presentation: 'modal', 
-            headerStyle: { backgroundColor: '#1E9E4F' },
-            headerTintColor: '#FFFFFF',
-          }} 
-        />
-        <Stack.Screen 
-          name="CreateBid" 
-          component={CreateBidScreen} 
-          options={{ 
-            title: 'ลงประกาศรับซื้อ',
-            presentation: 'modal', 
-            headerStyle: { backgroundColor: '#1E9E4F' },
-            headerTintColor: '#FFFFFF',
-          }} 
-        />
         
+        <Stack.Screen name="CreateListing" component={CreateListingScreen} options={{ title: 'ลงประกาศขาย', presentation: 'modal', headerStyle: { backgroundColor: '#1E9E4F' }, headerTintColor: '#FFFFFF', }} />
+        <Stack.Screen name="CreateBid" component={CreateBidScreen} options={{ title: 'ลงประกาศรับซื้อ', presentation: 'modal', headerStyle: { backgroundColor: '#1E9E4F' }, headerTintColor: '#FFFFFF', }} />
+        
+        {/* [เพิ่มส่วนนี้] ลงทะเบียนหน้า ListingDetail */}
+        <Stack.Screen 
+          name="ListingDetail" 
+          component={ListingDetailScreen} 
+          options={{ 
+            title: 'รายละเอียดสินค้า',
+            headerStyle: { backgroundColor: '#1E9E4F' },
+            headerTintColor: '#FFFFFF',
+            headerBackTitleVisible: false, // ซ่อน text ปุ่ม back บน iOS ให้ดูสะอาดตา
+          }} 
+        />
+
       </Stack.Navigator>
     </NavigationContainer>
   );
