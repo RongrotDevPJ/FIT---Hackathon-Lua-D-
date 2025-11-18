@@ -78,20 +78,23 @@ export default function MarketScreen() {
   const [loading, setLoading] = useState(true); 
   const [error, setError] = useState(null); 
   
+  // [ 📍📍📍 START: EDIT 📍📍📍 ]
+  // แก้ไขฟังก์ชัน fetchListings เพื่อจัดการ error ให้ถูกต้อง
   const fetchListings = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      // (*** แก้ไข path ตรงนี้ ***)
       const response = await fetch(`${API_BASE_URL}/orderApi/orders?status=open`);
       
+      // [ 📍 FIX 1 ] ย้าย await response.json() มาไว้ข้างบน
+      const result = await response.json();
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(result.error || `ไม่สามารถดึงข้อมูลได้: ${errorText}`);
+        // [ 📍 FIX 2 ] ใช้ result.error ที่ได้มาอย่างถูกต้อง
+        throw new Error(result.error || `ไม่สามารถดึงข้อมูลได้ (Status: ${response.status})`);
       }
 
-      const result = await response.json();
       setAllListings(result.items || []);
 
     } catch (e) {
@@ -101,6 +104,7 @@ export default function MarketScreen() {
       setLoading(false);
     }
   };
+  // [ 📍📍📍 END: EDIT 📍📍📍 ]
 
   useEffect(() => {
     fetchListings(); 

@@ -18,7 +18,7 @@ import ProfileScreen from './ProfileScreen';
 
 // (บ้านผู้ซื้อ)
 import MarketScreen from './MarketScreen'; 
-import MyBidsScreen from './MyBidsScreen'; 
+import MyBidsScreen from './MyBidsScreen'; // 📍 [หมายเหตุ] ไฟล์นี้ไม่ได้ใช้ในแท็บแล้ว แต่ CreateBidScreen ยังใช้ชื่อนี้อยู่
 import CreateBidScreen from './CreateBidScreen'; 
 // (MyOrdersScreen ไม่ได้ใช้แล้ว)
 
@@ -115,6 +115,8 @@ function MainAppTabs() {
 }
 
 // --- 5. "บ้านผู้ซื้อ" (5 แท็บ - ข่าวสาร) ---
+// [ 📍📍📍 START: EDIT 📍📍📍 ]
+// แก้ไข 'MyBidsTab'
 function BuyerAppTabs() {
   return (
     <Tab.Navigator
@@ -134,7 +136,21 @@ function BuyerAppTabs() {
       }}
     >
       <Tab.Screen name="MarketTab" component={MarketScreen} options={{ title: 'ตลาดลำไย', tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), }} />
-      <Tab.Screen name="MyBidsTab" component={MyBidsScreen} options={{ title: 'ข้อเสนอฉัน', tabBarIcon: ({ color, size }) => (<Ionicons name="chatbox-ellipses-outline" color={color} size={size} />), }} />
+      
+      {/* --- [ 📍 FIXED! ] --- */}
+      {/* เปลี่ยนจาก MyBidsScreen เป็น OffersScreen เพราะ OffersScreen รองรับทั้ง 2 role */}
+      <Tab.Screen 
+        name="MyBidsTab" 
+        component={OffersScreen}  // <-- แก้ไขตรงนี้
+        options={{ 
+          title: 'รายการเจรจา', // <-- แก้ไขชื่อ Title
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbox-ellipses-outline" color={color} size={size} />
+          ), 
+        }} 
+      />
+      {/* ---------------------- */}
+
       <Tab.Screen
         name="PostBidTab"
         component={CreateBidScreen}
@@ -170,6 +186,7 @@ function BuyerAppTabs() {
     </Tab.Navigator>
   );
 }
+// [ 📍📍📍 END: EDIT 📍📍📍 ]
 
 
 // --- 6. App หลัก (ฉบับสมบูรณ์) ---
@@ -215,4 +232,4 @@ export default function App() {
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
+}พrr

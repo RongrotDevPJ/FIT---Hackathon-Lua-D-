@@ -1,50 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // <-- 1. เพิ่ม useEffect
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
   TextInput, ScrollView, Platform, Alert,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
+import AsyncStorage from '@react-native-async-storage/async-storage'; // <-- 2. เพิ่ม AsyncStorage
 
 // [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
-import { API_BASE_URL } from './apiConfig'; // <-- แก้ไข: ใช้ค่าจากไฟล์กลางที่คำนวณ Host/IP ที่ถูกต้อง
+import { API_BASE_URL } from './apiConfig'; 
 
 export default function CreateBidScreen({ navigation }) {
-  // --- State สำหรับฟอร์ม (เหมือนเดิม) ---
+  // --- State สำหรับฟอร์ม ---
   const [grade, setGrade] = useState(''); 
   const [weight, setWeight] = useState('');
   const [price, setPrice] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
-
-  // --- [ 📍 เพิ่ม State ที่ Backend ต้องการ ] ---
   const [province, setProvince] = useState('');
   const [amphoe, setAmphoe] = useState('');   
   
-  // (สำคัญ! ปกติ ID นี้ต้องมาจาก State ของ User ที่ Login อยู่)
-  // (ตอนนี้ผมใส่ค่าปลอมไปก่อน คุณต้องไปดึง ID จริงมาใส่แทน)
-  const [ownerId, setOwnerId] = useState('TEMP_BUYER_ID_67890'); 
+  // --- [ 📍 3. แก้ไข State ของ ownerId ] ---
+  const [ownerId, setOwnerId] = useState(null); // (เปลี่ยนจากค่าปลอมเป็น null)
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true); // (เพิ่ม State โหลด)
 
-  const [loading, setLoading] = useState(false); // (สำหรับปุ่ม)
+  // --- [ 📍 4. เพิ่ม Logic ดึง ID ผู้ใช้ ] ---
+  useEffect(() => {
+    const loadUserId = async () => {
+        const storedId = await AsyncStorage.getItem('userId');
+        if (storedId) {
+            setOwnerId(storedId);
+        } else {
+            Alert.alert("ข้อผิดพลาด", "ไม่พบ ID ผู้ใช้ กรุณาล็อกอินใหม่");
+            navigation.goBack(); // ปิด Modal กลับไป
+        }
+        setInitialLoading(false);
+    };
+    loadUserId();
+  }, [navigation]);
 
-  // --- [ 📍 4. "ผ่าตัด" handleSubmit ] ---
-  const handleSubmit = async () => { // (A) เปลี่ยนเป็น async
+
+  // --- [ 📍 5. "ผ่าตัด" handleSubmit ] ---
+  const handleSubmit = async () => { 
     
-    // (B) เช็คข้อมูลที่เพิ่มเข้ามาด้วย
+    // (A) ตรวจสอบ ID จริง
+    if (!ownerId || initialLoading) {
+      Alert.alert("ข้อผิดพลาด", "กำลังโหลดข้อมูลผู้ใช้ กรุณารอสักครู่");
+      return;
+    }
+    
+    // (B) เช็คข้อมูล (เหมือนเดิม)
     if (!grade || !weight || !price || !deliveryDate || !province || !amphoe) {
       Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, จังหวัด, อำเภอ, วันที่ต้องการ) ให้ครบถ้วน');
       return;
     }
 
-    if (loading) return; // กันกดย้ำๆ
+    if (loading) return; 
     setLoading(true);
     
-    // (C) สร้าง "Payload"
+    // (C) สร้าง "Payload" (ใช้ ownerId จริงจาก State)
     const payload = {
-      // [ 📍 5. เปลี่ยน type เป็น "buy" ]
-      type: 'buy', // <--- บอก Backend ว่านี่คือ "ประกาศรับซื้อ"
-      
-      ownerId: ownerId, 
+      type: 'buy', 
+      ownerId: ownerId, // <--- 📍 (สำคัญ!)
       province: province,
       amphoe: amphoe,
       grade: grade,
@@ -56,7 +74,6 @@ export default function CreateBidScreen({ navigation }) {
     
     try {
       // (D) ยิง API (Fetch)
-      // (*** แก้ไข Endpoint: เพิ่ม /orderApi/ ***)
       const response = await fetch(`${API_BASE_URL}/orderApi/orders`, { 
         method: 'POST',
         headers: {
@@ -71,7 +88,7 @@ export default function CreateBidScreen({ navigation }) {
         throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
       }
 
-      // (E) ถ้าสำเร็จ (เปลี่ยนข้อความ Alert)
+      // (E) ถ้าสำเร็จ (เหมือนเดิม)
       Alert.alert(
           'ประกาศรับซื้อสำเร็จ', 
           'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
@@ -82,15 +99,26 @@ export default function CreateBidScreen({ navigation }) {
       console.error('Error submitting bid:', error);
       Alert.alert('เกิดข้อผิดพลาด', error.message);
     } finally {
-      setLoading(false); // (คืนค่าปุ่ม)
+      setLoading(false); 
     }
   };
+
+  // --- [ 📍 6. เพิ่มหน้า Loading ] ---
+  if (initialLoading) {
+    return (
+        <View style={styles.loadingFullContainer}>
+            <ActivityIndicator size="large" color="#1E9E4F" />
+            <Text style={styles.loadingText}>กำลังเตรียมข้อมูลผู้ใช้...</Text>
+        </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         
-        {/* --- [ 1. กลับไป 5 เกรด (AA, A, B, C, CC) ] --- */}
+        {/* ... (ส่วน JSX ที่เหลือเหมือนเดิมทั้งหมด) ... */}
+        
         <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
           <TouchableOpacity
@@ -135,7 +163,6 @@ export default function CreateBidScreen({ navigation }) {
           </TouchableOpacity>
         </View>
         
-        {/* === ฟิลด์ตัวเลข === */}
         <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
@@ -147,7 +174,6 @@ export default function CreateBidScreen({ navigation }) {
           <Text style={styles.inputSuffix}>บาท/กก.</Text>
         </View>
 
-        {/* --- [ 📍 6. เพิ่มช่องกรอก จังหวัด/อำเภอ ] --- */}
         <Text style={styles.label}>จังหวัด</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="เช่น เชียงใหม่, ลำพูน" onChangeText={setProvince} value={province} />
@@ -157,7 +183,6 @@ export default function CreateBidScreen({ navigation }) {
           <TextInput style={styles.input} placeholder="เช่น เมือง, สารภี" onChangeText={setAmphoe} value={amphoe} />
         </View>
 
-        {/* === ฟิลด์วันที่และรายละเอียด === */}
         <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
@@ -175,12 +200,12 @@ export default function CreateBidScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* --- [ 📍 7. อัปเกรดปุ่ม Submit ] --- */}
+      {/* --- ปุ่ม Submit (เหมือนเดิม) --- */}
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (loading || initialLoading) && styles.submitButtonDisabled]} // 📍 7. แก้ไข disable
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || initialLoading} // 📍 8. แก้ไข disable
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -193,8 +218,12 @@ export default function CreateBidScreen({ navigation }) {
   );
 }
 
-// --- [ StyleSheet (กลับไป 5 เกรด) ] ---
+// --- [ StyleSheet ] ---
 const styles = StyleSheet.create({
+  // 📍 9. เพิ่ม Style สำหรับ Loading
+  loadingFullContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' },
+  loadingText: { marginTop: 10, fontSize: 16, color: '#555' },
+  
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
   label: { fontSize: 16, fontWeight: 'bold', color: '#333', marginTop: 15, marginBottom: 10 },
@@ -255,7 +284,6 @@ const styles = StyleSheet.create({
   footer: { backgroundColor: '#FFFFFF', padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
   submitButton: { backgroundColor: '#1E9E4F', paddingVertical: 15, borderRadius: 8, alignItems: 'center' },
   
-  // --- [ 📍 8. เพิ่ม Style สำหรับปุ่มตอน Loading ] ---
   submitButtonDisabled: {
     backgroundColor: '#A5D6A7', // (สีเขียวจางๆ)
   },
