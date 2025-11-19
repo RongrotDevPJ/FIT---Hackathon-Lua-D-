@@ -6,14 +6,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native'; // <--- 1. เพิ่มบรรทัดนี้
+import { useNavigation } from '@react-navigation/native'; 
 
 // ตั้งค่า API URL
 import { API_BASE_URL } from './apiConfig';
 
 // --- Component ย่อย: ListingItem ---
 const ListingItem = ({ item }) => {
-  const navigation = useNavigation(); // <--- 2. เรียกใช้ navigation ตรงนี้เลย (ชัวร์กว่า)
+  const navigation = useNavigation(); 
 
   const getGradeBadgeColor = (grade) => {
     switch (grade) {
@@ -41,11 +41,12 @@ const ListingItem = ({ item }) => {
   return (
     <TouchableOpacity 
       style={styles.card}
-      // 3. ใส่คำสั่งกดตรงนี้โดยตรง
+      // Note: ListingDetail Screen ต้องถูกออกแบบให้รับมือกับ type: 'buy' ด้วย
       onPress={() => navigation.navigate('ListingDetail', { item: item })}
     >
       <View style={styles.cardHeader}>
-        <Text style={styles.gradeText}>เกรด {item.grade}</Text>
+        {/* ✅ แสดงประเภทของประกาศ */}
+        <Text style={styles.gradeText}>{item.type === 'buy' ? 'รับซื้อ' : 'ขาย'} เกรด {item.grade}</Text>
         <View style={[
           styles.gradeBadge, 
           {backgroundColor: getGradeBadgeColor(item.grade)} 
@@ -61,6 +62,7 @@ const ListingItem = ({ item }) => {
         <View style={styles.cardRight}>
           <Text style={styles.priceText}>{price.toFixed(2)} <Text style={styles.priceUnit}>บาท/กก.</Text></Text>
           <Text style={styles.totalPrice}>
+            {/* ข้อความจะเปลี่ยนไปตาม type: 'buy' หรือ 'sell' แต่จะใช้ total amount calculation เดียวกัน */}
             รวม {(amount * price).toLocaleString()} บาท
           </Text>
         </View>
@@ -74,6 +76,8 @@ const ListingItem = ({ item }) => {
 
 // --- Component หลัก: MarketScreen ---
 export default function MarketScreen() {
+  // ✅ แก้ไข: ตั้งค่าเริ่มต้นเป็น 'buy' เพื่อให้เห็นประกาศรับซื้อก่อน
+  const [activeTab, setActiveTab] = useState('buy'); 
   const [filter, setFilter] = useState('ทั้งหมด');
   const [allListings, setAllListings] = useState([]); 
   const [loading, setLoading] = useState(true); 
@@ -83,6 +87,7 @@ export default function MarketScreen() {
     setLoading(true);
     setError(null);
     try {
+      // ดึงรายการทั้งหมด (sell และ buy) ที่เปิดอยู่
       const response = await fetch(`${API_BASE_URL}/orderApi/orders?status=open`);
       const result = await response.json();
 
@@ -102,10 +107,14 @@ export default function MarketScreen() {
     fetchListings(); 
   }, []); 
 
+  // ✅ แก้ไข: กรองตาม activeTab และ Grade 
   const filteredListings = allListings
-    .filter(item => item.type === 'sell') 
+    .filter(item => item.type === activeTab) 
     .filter(item => {
-      if (filter === 'ทั้งหมด') return true;
+      // ถ้าเป็นแท็บ 'buy' หรือ filter เป็น 'ทั้งหมด' ไม่ต้องกรองเกรด
+      if (activeTab === 'buy' || filter === 'ทั้งหมด') return true; 
+      
+      // กรองเกรดเฉพาะเมื่ออยู่แท็บ 'sell'
       return item.grade === filter;
     });
 
@@ -132,14 +141,16 @@ export default function MarketScreen() {
       );
     }
     
+    // ✅ แก้ไข: ข้อความสำหรับรายการว่าง
     if (filteredListings.length === 0) {
+       const tabName = activeTab === 'sell' ? 'ประกาศขาย' : 'ประกาศรับซื้อ';
        return (
             <View style={styles.emptyContainer}>
                 <Ionicons name="sad-outline" size={60} color="#CCCCCC" />
                 <Text style={styles.emptyText}>
-                  {filter === 'ทั้งหมด' 
-                    ? 'ยังไม่มีประกาศขายในตลาด' 
-                    : `ไม่พบประกาศขายเกรด ${filter}`
+                  {activeTab === 'sell' && filter !== 'ทั้งหมด'
+                    ? `ไม่พบ${tabName}เกรด ${filter}`
+                    : `ยังไม่มี${tabName}ในตลาด` 
                   }
                 </Text>
                 <TouchableOpacity onPress={fetchListings} style={styles.retryButton}>
@@ -152,7 +163,7 @@ export default function MarketScreen() {
     return (
       <FlatList
         data={filteredListings}
-        renderItem={({ item }) => <ListingItem item={item} />} // ไม่ต้องส่ง props onPress แล้ว เพราะจัดการในตัว
+        renderItem={({ item }) => <ListingItem item={item} />} 
         keyExtractor={item => item.id}
         ListHeaderComponent={() => (
           <Text style={styles.resultText}>พบ {filteredListings.length} รายการ</Text>
@@ -172,10 +183,35 @@ export default function MarketScreen() {
         <TextInput placeholder="ค้นหาลำไย..." style={styles.searchInput} />
       </View>
 
-      <View style={styles.filterScroller}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['ทั้งหมด', 'AA', 'A', 'B', 'C', 'CC'].map((g) => (
-             <TouchableOpacity
+      {/* ✅ ส่วน Tab Container ใหม่ */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'buy' && styles.activeTab]}
+          onPress={() => {
+            setActiveTab('buy');
+            setFilter('ทั้งหมด'); // รีเซ็ต filter เมื่อเปลี่ยน tab
+          }}
+        >
+          <Text style={activeTab === 'buy' ? styles.activeTabText : styles.tabText}>
+            ประกาศรับซื้อ (ผู้รับซื้อ)
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.tab, activeTab === 'sell' && styles.activeTab]}
+          onPress={() => setActiveTab('sell')}
+        >
+          <Text style={activeTab === 'sell' ? styles.activeTabText : styles.tabText}>
+            รายการขาย (เกษตรกร)
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
+      {/* ✅ แสดง Grade Filter เฉพาะเมื่ออยู่แท็บ 'sell' */}
+      {activeTab === 'sell' && (
+        <View style={styles.filterScroller}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {['ทั้งหมด', 'AA', 'A', 'B', 'C', 'CC'].map((g) => (
+              <TouchableOpacity
                 key={g}
                 style={[styles.filterChip, filter === g && styles.filterChipActive]}
                 onPress={() => setFilter(g)}
@@ -184,9 +220,10 @@ export default function MarketScreen() {
                     {g === 'ทั้งหมด' ? g : `เกรด ${g}`}
                 </Text>
               </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       
       {renderContent()}
     </SafeAreaView>
@@ -195,6 +232,34 @@ export default function MarketScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  // ✅ Styles สำหรับ Tab
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 15,
+    marginBottom: 10,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  activeTab: {
+    backgroundColor: '#1E9E4F',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#555',
+  },
+  activeTabText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  // ... (Styles ส่วนอื่นๆ ที่มีอยู่เดิม)
   listContainer: { paddingHorizontal: 15, paddingBottom: 20 },
   searchContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F4F4',

@@ -1,6 +1,6 @@
 import { db } from "../config/firestore";
 import { Timestamp } from "firebase-admin/firestore";
-// ✅ [แก้ไข]: ใช้ * as admin เพื่อให้แน่ใจว่า Type ของ Query ถูกต้อง
+// ใช้ * as admin เพื่อให้แน่ใจว่า Type ของ Query ถูกต้อง
 import * as admin from 'firebase-admin'; 
 import { Order } from "../models/Order";
 import {
@@ -11,6 +11,33 @@ import {
 
 const ORDERS_COL = "orders";
 const NEGOS_COL = "negotiations";
+
+// ✅ [NEW] 1. Interface สำหรับ Negotiation ที่มี Order details - ถูก EXPORT แล้ว
+export interface NegotiationWithOrder extends Negotiation {
+    order: Order & { id: string };
+}
+
+/**
+ * ดึง Negotiation พร้อม Order details ต้นฉบับ (ใช้โดย Frontend: NegotiationDetailScreen)
+ */
+// ✅ [NEW] 2. ฟังก์ชันใหม่ - ถูก EXPORT แล้ว
+export async function getNegotiationByIdWithOrder(negotiationId: string): Promise<NegotiationWithOrder | null> {
+    const negoSnap = await db.collection(NEGOS_COL).doc(negotiationId).get();
+    if (!negoSnap.exists) return null;
+
+    const negotiation = { id: negoSnap.id, ...negoSnap.data() } as Negotiation;
+    
+    // ดึงรายละเอียด Order ต้นฉบับ
+    const orderSnap = await db.collection(ORDERS_COL).doc(negotiation.orderId).get();
+    if (!orderSnap.exists) {
+        // Order ถูกลบไปแล้ว ถือว่าข้อมูลไม่สมบูรณ์
+        throw new Error(`Original Order not found for negotiationId: ${negotiationId}, OrderId: ${negotiation.orderId}`);
+    }
+    const order = { id: orderSnap.id, ...orderSnap.data() } as Order & { id: string };
+
+    return { ...negotiation, order };
+};
+
 
 /**
  * โหลด order + ตีความว่าใครเป็น factory / farmer จาก order.type

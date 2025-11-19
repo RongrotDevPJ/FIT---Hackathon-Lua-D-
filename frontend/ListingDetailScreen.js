@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, Text, View, ScrollView, 
-  TouchableOpacity, Alert, ActivityIndicator 
+import {
+  StyleSheet, Text, View, ScrollView,
+  TouchableOpacity, Alert, ActivityIndicator,
+  TextInput, Modal, Platform // ต้องมี Modal, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,95 +10,130 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './apiConfig';
 
 export default function ListingDetailScreen({ route, navigation }) {
-  // รับข้อมูลสินค้าที่ส่งมาจากหน้า Market
+  // รับข้อมูลสินค้าที่ส่งมาจากหน้า Market หรือ Home
   const { item } = route.params;
-  
+
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  // [📍 เพิ่ม State สำหรับเก็บ Token]
-  const [currentUserToken, setCurrentUserToken] = useState(null); 
+  const [currentUserToken, setCurrentUserToken] = useState(null);
+
+  // ✅ State สำหรับ Modal และ Input สำหรับการเสนอขาย
+  const [isOfferModalVisible, setIsOfferModalVisible] = useState(false);
+  const [offerAmount, setOfferAmount] = useState(''); // ปริมาณที่เกษตรกรจะเสนอขาย
 
   useEffect(() => {
     // ดึง ID ของเราเพื่อเช็คว่าไม่ใช่สินค้าตัวเอง
     const loadUser = async () => {
       const id = await AsyncStorage.getItem('userId');
-      // [📍 ดึง ID Token จาก AsyncStorage]
-      const token = await AsyncStorage.getItem('userToken'); 
-      
+      const token = await AsyncStorage.getItem('userToken');
+
       setCurrentUserId(id);
       setCurrentUserToken(token); // เก็บ Token ไว้ใน State
     };
     loadUser();
   }, []);
 
-  const handleStartNegotiation = async () => {
-    if (!currentUserId || !currentUserToken) { // [📍 เช็ค Token ด้วย]
-      Alert.alert('แจ้งเตือน', 'กรุณาเข้าสู่ระบบก่อนเริ่มเจรจา (ไม่พบข้อมูล Token)');
+  // -----------------------------------------------------------
+  // Logic สำหรับเกษตรกร: เสนอขายลำไยตอบกลับประกาศรับซื้อ (Order type: 'buy')
+  // -----------------------------------------------------------
+  const handleStartNegotiationAsFarmer = async () => {
+    if (!currentUserId || !currentUserToken) {
+      Alert.alert("ข้อผิดพลาด", "กรุณาเข้าสู่ระบบก่อนดำเนินการ");
       return;
     }
 
-    if (currentUserId === item.ownerId) {
-      Alert.alert('ทำรายการไม่ได้', 'คุณไม่สามารถซื้อขายสินค้าของตัวเองได้');
+    const amount = parseFloat(offerAmount);
+
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert("ข้อผิดพลาด", "กรุณาระบุน้ำหนักที่ถูกต้อง");
       return;
     }
 
     setLoading(true);
+    setIsOfferModalVisible(false); // ปิด Modal
+
     try {
       const apiUrl = `${API_BASE_URL}/orderApi/orders/${item.id}/negotiations`;
-      
-      console.log("Creating negotiation at:", apiUrl);
+
+      const payload = {
+        actorId: currentUserId,
+        // ใช้ราคาของประกาศรับซื้อ (item.requestedPrice) เป็นราคาเริ่มต้นในการเสนอขาย
+        offeredPrice: item.requestedPrice,
+        amountKg: amount,
+      };
 
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          // [📍 แก้ไข: เพิ่ม Authorization Header พร้อม Bearer Token]
+        headers: {
           'Authorization': `Bearer ${currentUserToken}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-           actorId: currentUserId,           // คนที่กดปุ่ม (เรา)
-           offeredPrice: item.requestedPrice, // เริ่มต้นด้วยราคาที่เขาตั้งไว้
-           amountKg: item.amountKg           // จำนวนทั้งหมด
-        })
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || 'ไม่สามารถสร้างรายการเจรจาได้');
-      }
-
-      // ถ้าสำเร็จ ให้แจ้งเตือนและพาไปหน้า Offers
-      Alert.alert(
-        'ส่งคำขอสำเร็จ!', 
-        'เริ่มการเจรจาเรียบร้อย ระบบจะพาคุณไปที่หน้าข้อเสนอ',
-        [
-          { 
-            text: 'ตกลง', 
+      if (response.ok) {
+        Alert.alert("เสนอขายสำเร็จ", "คำขอขายถูกส่งไปยังผู้รับซื้อแล้ว สถานะจะปรากฏในหน้าข้อเสนอ", [
+          {
+            text: "ตกลง",
             onPress: () => {
-                // แก้ไขการนำทาง (ตามขั้นตอนก่อนหน้า)
-                navigation.navigate('BuyerApp', { screen: 'MyBidsTab' }); 
-            } 
+              // นำทางไปยัง OffersTab ทันที
+              navigation.navigate('OffersTab');
+            }
           }
-        ]
-      );
+        ]);
 
-    } catch (error) {
-      console.error("Negotiation Error:", error);
-      Alert.alert('เกิดข้อผิดพลาด', error.message);
+      } else {
+        console.error("Negotiation Error:", result);
+        Alert.alert('ข้อผิดพลาด', result.error || 'ไม่สามารถส่งคำขอขายได้');
+      }
+    } catch (e) {
+      console.error("Network Error:", e);
+      Alert.alert('ข้อผิดพลาดเครือข่าย', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
     } finally {
       setLoading(false);
     }
   };
 
+  // -----------------------------------------------------------
+  // Logic สำหรับ Buyer: เริ่มเจรจา Order type: 'sell' (ยังไม่ต้องแก้ไข)
+  // -----------------------------------------------------------
+  const handleStartNegotiationAsBuyer = () => {
+    Alert.alert("ทำรายการไม่ได้", "ฟังก์ชันนี้มีไว้สำหรับผู้ซื้อสินค้าเท่านั้น");
+  };
+
+  // -----------------------------------------------------------
+  // Logic หลัก: กดปุ่มที่ด้านล่าง
+  // -----------------------------------------------------------
+  const handleDealAction = () => {
+    // กรณีที่รายการเป็น Buy Offer (เกษตรกรเห็นและจะเสนอขาย)
+    if (item.type === 'buy') {
+      if (currentUserId === item.ownerId) {
+        Alert.alert('ทำรายการไม่ได้', 'นี่คือประกาศรับซื้อของคุณเอง');
+        return;
+      }
+      // ตั้งค่า offerAmount เป็นค่าว่างเสมอเมื่อเปิด Modal เพื่อให้เกษตรกรกรอกใหม่
+      setOfferAmount('');
+      setIsOfferModalVisible(true);
+    }
+    // กรณีที่รายการเป็น Sell Listing (ผู้ซื้อเห็นและจะเสนอซื้อ - ใช้สำหรับบทบาท Buyer เท่านั้น)
+    else if (item.type === 'sell') {
+      handleStartNegotiationAsBuyer();
+    }
+  };
+
   const getGradeColor = (g) => {
-    switch(g) {
+    switch (g) {
       case 'AA': return '#D32F2F';
       case 'A': return '#1E9E4F';
       case 'B': return '#0D6EfD';
       default: return '#888';
     }
   };
+
+  const isBuyOffer = item.type === 'buy';
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -114,17 +150,19 @@ export default function ListingDetailScreen({ route, navigation }) {
               <Text style={styles.badgeText}>เกรด {item.grade}</Text>
             </View>
             <Text style={styles.dateText}>
-              ลงเมื่อ: {item.createdAt && item.createdAt._seconds 
+              ลงเมื่อ: {item.createdAt && item.createdAt._seconds
                 ? new Date(item.createdAt._seconds * 1000).toLocaleDateString('th-TH')
                 : 'ไม่ระบุ'}
             </Text>
           </View>
 
-          <Text style={styles.title}>ลำไยคุณภาพ (เกรด {item.grade})</Text>
-          
+          <Text style={styles.title}>
+            {isBuyOffer ? 'ประกาศรับซื้อ' : 'ประกาศขาย'} (เกรด {item.grade})
+          </Text>
+
           {/* Price Section */}
           <View style={styles.priceBox}>
-            <Text style={styles.priceLabel}>ราคาเสนอขาย</Text>
+            <Text style={styles.priceLabel}>ราคาเสนอ{isBuyOffer ? 'รับซื้อ' : 'ขาย'}</Text>
             <Text style={styles.priceValue}>{item.requestedPrice} <Text style={styles.unit}>บาท/กก.</Text></Text>
           </View>
 
@@ -145,7 +183,7 @@ export default function ListingDetailScreen({ route, navigation }) {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>รายละเอียดเพิ่มเติม</Text>
             <Text style={styles.description}>
-              {item.details || "ไม่มีรายละเอียดเพิ่มเติมจากผู้ขาย"}
+              {item.details || "ไม่มีรายละเอียดเพิ่มเติมจากผู้รับซื้อ/ผู้ขาย"}
             </Text>
           </View>
 
@@ -155,26 +193,74 @@ export default function ListingDetailScreen({ route, navigation }) {
       {/* Bottom Action Bar */}
       <View style={styles.footer}>
         <View style={styles.totalInfo}>
-            <Text style={styles.totalLabel}>มูลค่ารวมประมาณ</Text>
-            <Text style={styles.totalValue}>
-              {(item.amountKg * item.requestedPrice).toLocaleString()} บาท
-            </Text>
+          <Text style={styles.totalLabel}>มูลค่ารวมประมาณ</Text>
+          <Text style={styles.totalValue}>
+            {(item.amountKg * item.requestedPrice).toLocaleString()} บาท
+          </Text>
         </View>
-        <TouchableOpacity 
-          style={[styles.dealButton, loading && styles.disabledButton]}
-          onPress={handleStartNegotiation}
+        <TouchableOpacity
+          style={[styles.dealButton, loading && styles.disabledButton, isBuyOffer && styles.offerButton]}
+          onPress={handleDealAction}
           disabled={loading}
         >
-           {loading ? (
-             <ActivityIndicator color="#FFF" />
-           ) : (
-             <>
-               <Ionicons name="chatbubbles-outline" size={20} color="#FFF" style={{marginRight: 8}}/>
-               <Text style={styles.dealButtonText}>เจรจาซื้อขาย</Text>
-             </>
-           )}
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="pricetag-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+              {/* เปลี่ยนข้อความปุ่ม */}
+              <Text style={styles.dealButtonText}>
+                {isBuyOffer ? 'ขายให้ผู้รับซื้อ' : 'สนใจดีล (สำหรับผู้ซื้อ)'}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
+
+      {/* ✅ Modal สำหรับ Farmer เสนอขาย */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isOfferModalVisible}
+        onRequestClose={() => setIsOfferModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* เปลี่ยน Modal Title */}
+            <Text style={styles.modalTitle}>ระบุรายละเอียดการขาย</Text>
+            {/* ✅ FIX: ห่อหุ้มข้อความใน Modal ให้ถูกต้องทั้งหมด */}
+            <Text style={styles.modalText}>
+              <Text>คุณต้องการตอบรับประกาศรับซื้อนี้ กรุณาระบุปริมาณลำไยที่คุณจะขาย โดยใช้ราคาที่ผู้รับซื้อเสนอรับซื้อไว้</Text>
+              <Text style={{ fontWeight: 'bold' }}> ({item.requestedPrice} บาท/กก.)</Text>
+              <Text> เป็นราคาเริ่มต้น</Text>
+            </Text>
+
+            <Text style={styles.inputLabel}>ปริมาณลำไยที่จะขาย (กก.):</Text>
+            <TextInput
+              style={styles.input}
+              onChangeText={setOfferAmount}
+              value={offerAmount}
+              keyboardType="numeric"
+              placeholder="ระบุน้ำหนักที่ต้องการขาย"
+            />
+
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelModalButton]}
+                onPress={() => setIsOfferModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmModalButton]}
+                onPress={handleStartNegotiationAsFarmer}
+              >
+                <Text style={styles.modalButtonText}>ยืนยันการเสนอขาย</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -203,7 +289,82 @@ const styles = StyleSheet.create({
   totalInfo: { flex: 1 },
   totalLabel: { fontSize: 12, color: '#888' },
   totalValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  dealButton: { backgroundColor: '#1E9E4F', flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 30, alignItems: 'center' },
+  dealButton: {
+    backgroundColor: '#1E9E4F',
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 30,
+    alignItems: 'center',
+    flex: 1.5, // ให้ปุ่มใหญ่ขึ้น
+  },
+  offerButton: { // ✅ สไตล์สำหรับปุ่มเสนอขาย
+    backgroundColor: '#0D6EfD',
+  },
   disabledButton: { backgroundColor: '#A5D6A7' },
-  dealButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  dealButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  modalContainer: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 25,
+    elevation: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333'
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 5,
+    fontWeight: '600',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  modalButton: {
+    padding: 12,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  cancelModalButton: {
+    backgroundColor: '#9E9E9E',
+  },
+  confirmModalButton: {
+    backgroundColor: '#0D6EfD',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  }
 });

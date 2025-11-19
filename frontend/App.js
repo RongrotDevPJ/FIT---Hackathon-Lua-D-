@@ -21,7 +21,6 @@ import CreateBidScreen from './CreateBidScreen';
 
 // (หน้ารายละเอียด)
 import ListingDetailScreen from './ListingDetailScreen'; 
-// [✅ ส่วนที่ต้องเพิ่ม 1/2: Import หน้าจอใหม่]
 import NegotiationDetailScreen from './NegotiationDetailScreen'; 
 
 // (ห้องข่าวสาร)
@@ -31,7 +30,7 @@ import NewsScreen from './NewsScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// --- 3. ปุ่มบวกตรงกลาง ---
+// --- 3. ปุ่มบวกตรงกลาง (CustomTabButton) ---
 const CustomTabButton = ({ children, onPress }) => (
   <TouchableOpacity
     style={{
@@ -59,7 +58,7 @@ const CustomTabButton = ({ children, onPress }) => (
   </TouchableOpacity>
 );
 
-// --- 4. Tab เกษตรกร ---
+// --- 4. Tab เกษตรกร (MainAppTabs) ---
 function MainAppTabs() {
   return (
     <Tab.Navigator
@@ -73,6 +72,10 @@ function MainAppTabs() {
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: 'หน้าหลัก', tabBarIcon: ({ color, size }) => (<Ionicons name="home-outline" color={color} size={size} />), }} />
+      
+      {/* ✅ FIX: ลบ MarketTab ออก เพื่อใช้ Tab Bar แบบเดิม */}
+      {/* <Tab.Screen name="MarketTab" component={MarketScreen} options={{ title: 'ตลาดลำไย', tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), }} /> */} 
+      
       <Tab.Screen name="OffersTab" component={OffersScreen} options={{ title: 'ข้อเสนอ', tabBarIcon: ({ color, size }) => (<Ionicons name="chatbubbles-outline" color={color} size={size} />), }} />
       <Tab.Screen
         name="PostTab"
@@ -93,7 +96,7 @@ function MainAppTabs() {
   );
 }
 
-// --- 5. Tab ผู้ซื้อ ---
+// --- 5. Tab ผู้ซื้อ (BuyerAppTabs) ---
 function BuyerAppTabs() {
   return (
     <Tab.Navigator
@@ -154,7 +157,7 @@ export default function App() {
           }} 
         />
 
-        {/* [✅ ส่วนที่ต้องเพิ่ม 2/2: ลงทะเบียนหน้า NegotiationDetail] */}
+        {/* ลงทะเบียนหน้า NegotiationDetail */}
         <Stack.Screen 
           name="NegotiationDetail" 
           component={NegotiationDetailScreen} 
