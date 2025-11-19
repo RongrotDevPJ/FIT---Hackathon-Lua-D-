@@ -19,8 +19,10 @@ import ProfileScreen from './ProfileScreen';
 import MarketScreen from './MarketScreen'; 
 import CreateBidScreen from './CreateBidScreen'; 
 
-// (หน้ารายละเอียดที่เพิ่งสร้างใหม่!)
-import ListingDetailScreen from './ListingDetailScreen'; // <--- [เพิ่มบรรทัดนี้]
+// (หน้ารายละเอียด)
+import ListingDetailScreen from './ListingDetailScreen'; 
+// [✅ ส่วนที่ต้องเพิ่ม 1/2: Import หน้าจอใหม่]
+import NegotiationDetailScreen from './NegotiationDetailScreen'; 
 
 // (ห้องข่าวสาร)
 import NewsScreen from './NewsScreen'; 
@@ -140,7 +142,7 @@ export default function App() {
         <Stack.Screen name="CreateListing" component={CreateListingScreen} options={{ title: 'ลงประกาศขาย', presentation: 'modal', headerStyle: { backgroundColor: '#1E9E4F' }, headerTintColor: '#FFFFFF', }} />
         <Stack.Screen name="CreateBid" component={CreateBidScreen} options={{ title: 'ลงประกาศรับซื้อ', presentation: 'modal', headerStyle: { backgroundColor: '#1E9E4F' }, headerTintColor: '#FFFFFF', }} />
         
-        {/* [เพิ่มส่วนนี้] ลงทะเบียนหน้า ListingDetail */}
+        {/* ลงทะเบียนหน้า ListingDetail */}
         <Stack.Screen 
           name="ListingDetail" 
           component={ListingDetailScreen} 
@@ -148,7 +150,19 @@ export default function App() {
             title: 'รายละเอียดสินค้า',
             headerStyle: { backgroundColor: '#1E9E4F' },
             headerTintColor: '#FFFFFF',
-            headerBackTitleVisible: false, // ซ่อน text ปุ่ม back บน iOS ให้ดูสะอาดตา
+            headerBackTitleVisible: false, 
+          }} 
+        />
+
+        {/* [✅ ส่วนที่ต้องเพิ่ม 2/2: ลงทะเบียนหน้า NegotiationDetail] */}
+        <Stack.Screen 
+          name="NegotiationDetail" 
+          component={NegotiationDetailScreen} 
+          options={{ 
+            title: 'ห้องเจรจา', 
+            headerStyle: { backgroundColor: '#1E9E4F' },
+            headerTintColor: '#FFFFFF',
+            headerBackTitleVisible: false, 
           }} 
         />
 

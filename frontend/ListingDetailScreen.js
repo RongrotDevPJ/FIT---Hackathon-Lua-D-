@@ -14,19 +14,25 @@ export default function ListingDetailScreen({ route, navigation }) {
   
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  // [📍 เพิ่ม State สำหรับเก็บ Token]
+  const [currentUserToken, setCurrentUserToken] = useState(null); 
 
   useEffect(() => {
     // ดึง ID ของเราเพื่อเช็คว่าไม่ใช่สินค้าตัวเอง
     const loadUser = async () => {
       const id = await AsyncStorage.getItem('userId');
+      // [📍 ดึง ID Token จาก AsyncStorage]
+      const token = await AsyncStorage.getItem('userToken'); 
+      
       setCurrentUserId(id);
+      setCurrentUserToken(token); // เก็บ Token ไว้ใน State
     };
     loadUser();
   }, []);
 
   const handleStartNegotiation = async () => {
-    if (!currentUserId) {
-      Alert.alert('แจ้งเตือน', 'กรุณาเข้าสู่ระบบก่อนเริ่มเจรจา');
+    if (!currentUserId || !currentUserToken) { // [📍 เช็ค Token ด้วย]
+      Alert.alert('แจ้งเตือน', 'กรุณาเข้าสู่ระบบก่อนเริ่มเจรจา (ไม่พบข้อมูล Token)');
       return;
     }
 
@@ -37,15 +43,17 @@ export default function ListingDetailScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      // 📍 [FIX] เชื่อมต่อ API จริง (ยกเลิกตัวจำลอง)
-      // URL ต้องตรงกับ Backend: /orders/:id/negotiations
       const apiUrl = `${API_BASE_URL}/orderApi/orders/${item.id}/negotiations`;
       
       console.log("Creating negotiation at:", apiUrl);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          // [📍 แก้ไข: เพิ่ม Authorization Header พร้อม Bearer Token]
+          'Authorization': `Bearer ${currentUserToken}`,
+        },
         body: JSON.stringify({
            actorId: currentUserId,           // คนที่กดปุ่ม (เรา)
            offeredPrice: item.requestedPrice, // เริ่มต้นด้วยราคาที่เขาตั้งไว้
@@ -67,9 +75,8 @@ export default function ListingDetailScreen({ route, navigation }) {
           { 
             text: 'ตกลง', 
             onPress: () => {
-                // นำทางไปที่หน้ารายการเจรจา
-                // หากคุณใช้ Tab Navigation อาจต้องปรับเส้นทาง เช่น navigation.navigate('BuyerApp', { screen: 'OffersTab' });
-                navigation.navigate('OffersScreen'); 
+                // แก้ไขการนำทาง (ตามขั้นตอนก่อนหน้า)
+                navigation.navigate('BuyerApp', { screen: 'MyBidsTab' }); 
             } 
           }
         ]

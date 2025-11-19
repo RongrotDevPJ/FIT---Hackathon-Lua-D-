@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'; // 1. เพิ่ม useCallback
+import React, { useState, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, FlatList, 
   TouchableOpacity, Alert, ActivityIndicator
@@ -6,11 +6,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
-import { useFocusEffect } from '@react-navigation/native'; // 2. เพิ่ม useFocusEffect
+import { useFocusEffect } from '@react-navigation/native';
 import { API_BASE_URL } from './apiConfig'; 
 
+// [📍 ลบ Component NegotiationActions ออก - ย้ายไปทำงานที่ NegotiationDetailScreen แทน]
+// โค้ดส่วนนี้ถูกลบออกไป:
+/*
+const NegotiationActions = ({ item, onAction, userRole }) => { ... };
+*/
+
+
 // --- Component สำหรับแสดงรายการ (Item) ---
-const OfferItem = ({ item }) => {
+// [📍 แก้ไข: เปลี่ยน props เป็น { item, navigation } เพื่อใช้ในการนำทาง]
+const OfferItem = ({ item, navigation }) => {
   const getStatusStyle = (status) => {
     switch (status) {
       case 'open': return { color: '#FFB800', text: 'รอการตอบรับ' };
@@ -33,13 +41,11 @@ const OfferItem = ({ item }) => {
   }
 
   const handleViewDeal = () => {
-    Alert.alert('รายละเอียด', 
-      `Order: ${item.orderId}\n` +
-      `ราคาเสนอ: ${offeredPrice} บาท/กก.\n` +
-      `สถานะ: ${statusInfo.text}`
-    );
+    // [📍 แก้ไข: เปลี่ยนจาก Alert เป็นการ Navigate ไปหน้า Detail]
+    navigation.navigate('NegotiationDetail', { negotiationId: item.id });
   };
 
+  // [📍 นำ onPress กลับมาใช้บน TouchableOpacity หลัก]
   return (
     <TouchableOpacity style={styles.offerCard} onPress={handleViewDeal}>
       <View style={styles.cardHeader}>
@@ -61,6 +67,9 @@ const OfferItem = ({ item }) => {
           <Text style={styles.weightText}>{dateString}</Text>
         </View>
       </View>
+      
+      {/* [📍 ลบ Component การดำเนินการออก] */}
+
     </TouchableOpacity>
   );
 }; 
@@ -68,17 +77,18 @@ const OfferItem = ({ item }) => {
 export default function OffersScreen({ navigation }) {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null); // 3. เก็บ Role ใน State
+  const [userRole, setUserRole] = useState(null);
+  
+  // [📍 เพิ่ม State สำหรับ Filter]
+  const [filter, setFilter] = useState('active'); // ค่าเริ่มต้น: กำลังดีล
   
   const fetchOffers = async () => {
-    // ถ้าไม่มีข้อมูลเลย ให้หมุนติ้วๆ (แต่ถ้ามีแล้ว จะเป็นการรีเฟรชเงียบๆ)
     if (offers.length === 0) setLoading(true);
 
     try {
       const userId = await AsyncStorage.getItem('userId');
       const role = await AsyncStorage.getItem('userRole');
       
-      // เก็บ Role ใส่ State เพื่อเอาไปใช้เช็คเงื่อนไขแสดงผล
       setUserRole(role); 
 
       if (!userId || !role) {
@@ -90,7 +100,7 @@ export default function OffersScreen({ navigation }) {
       if (role === 'farmer') {
         endpoint = `${API_BASE_URL}/orderApi/negotiations?farmerId=${userId}`;
       } else {
-        endpoint = `${API_BASE_URL}/orderApi/negotiations?buyerId=${userId}`; // ค้นหาด้วย buyerId (ต้องตรงกับ Backend)
+        endpoint = `${API_BASE_URL}/orderApi/negotiations?buyerId=${userId}`;
       }
 
       const response = await fetch(endpoint);
@@ -109,47 +119,109 @@ export default function OffersScreen({ navigation }) {
     }
   };
 
+  // [📍 ลบฟังก์ชัน handleUpdateNegotiation ออก - ย้ายไปทำงานที่ NegotiationDetailScreen แทน]
+  /*
+  const handleUpdateNegotiation = async (negotiationId, action, newPrice = null) => { ... };
+  */
+  
   // 4. ใช้ useFocusEffect เพื่อให้โหลดใหม่ทุกครั้งที่กลับมาหน้านี้
   useFocusEffect(
     useCallback(() => {
       fetchOffers();
     }, [])
   );
+  
+  // [📍 ฟังก์ชันกรองข้อมูลตามสถานะ]
+  const getFilteredOffers = (allOffers = offers) => {
+    if (allOffers.length === 0) return [];
+    
+    // สถานะที่ใช้ในการตัดสินใจ (ใช้ status หรือ priceStatus ก็ได้)
+    const getStatus = (item) => item.status || item.priceStatus || 'unknown';
 
+    switch (filter) {
+      case 'active':
+        // กำลังดีล/รอการตอบรับ
+        return allOffers.filter(item => ['open', 'negotiating'].includes(getStatus(item)));
+      case 'accepted':
+        // ดีลสำเร็จแล้ว
+        return allOffers.filter(item => getStatus(item) === 'accepted');
+      case 'failed':
+        // ดีลถูกปฏิเสธ/ยกเลิก
+        return allOffers.filter(item => ['rejected', 'cancelled'].includes(getStatus(item)));
+      default:
+        return allOffers;
+    }
+  };
+
+  const filteredOffers = getFilteredOffers();
+
+  // --- Main Render ---
   return (
     <SafeAreaView style={styles.safeArea}>
-      
-      {loading && offers.length === 0 ? (
-        <View style={styles.emptyContainer}>
-            <ActivityIndicator size="large" color="#1E9E4F" />
-            <Text style={styles.emptyText}>กำลังโหลดรายการ...</Text>
+        
+        {/* [📍 เพิ่มแถบ Filter] */}
+        <View style={styles.filterContainer}>
+            {
+                [{ key: 'active', label: 'กำลังดีล' }, 
+                 { key: 'accepted', label: 'ดีลสำเร็จ' }, 
+                 { key: 'failed', label: 'ถูกปฏิเสธ/ยกเลิก' }]
+                .map((tab) => (
+                    <TouchableOpacity
+                        key={tab.key}
+                        style={[
+                            styles.filterButton,
+                            filter === tab.key && styles.filterButtonActive
+                        ]}
+                        onPress={() => setFilter(tab.key)}
+                    >
+                        <Text style={[
+                            styles.filterButtonText,
+                            filter === tab.key && styles.filterButtonTextActive
+                        ]}>
+                            {tab.label} ({getFilteredOffers(offers).filter(item => {
+                                // นับจำนวนรายการตามหมวดหมู่ที่ถูกเลือก (ใช้ offers ทั้งหมดเพื่อนับ)
+                                const status = item.status || item.priceStatus;
+                                if (tab.key === 'active') return ['open', 'negotiating'].includes(status);
+                                if (tab.key === 'accepted') return status === 'accepted';
+                                if (tab.key === 'failed') return ['rejected', 'cancelled'].includes(status);
+                                return false; 
+                            }).length})
+                        </Text>
+                    </TouchableOpacity>
+                ))
+            }
         </View>
-      ) : offers.length === 0 ? (
-        <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={80} color="#CCCCCC" />
-            <Text style={styles.emptyText}>ยังไม่มีรายการเจรจา</Text>
-            <Text style={styles.emptySubText}>
-              {/* 5. ใช้ userRole จาก State แทน AsyncStorage */}
-              {userRole === 'farmer' 
-                ? 'รอผู้ซื้อยื่นข้อเสนอเข้ามา'
-                : 'ไปที่ "ตลาดลำไย" เพื่อเลือกสินค้าและกดเจรจา'
-              }
-            </Text>
-            <TouchableOpacity onPress={fetchOffers} style={styles.retryButton}>
-                  <Text style={styles.retryButtonText}>โหลดใหม่</Text>
-            </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={offers}
-          renderItem={({ item }) => <OfferItem item={item} />}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContainer}
-          // 6. เพิ่มระบบลากลงเพื่อรีเฟรช (Pull to Refresh)
-          refreshing={loading}
-          onRefresh={fetchOffers}
-        />
-      )}
+
+        {loading && offers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+                <ActivityIndicator size="large" color="#1E9E4F" />
+                <Text style={styles.emptyText}>กำลังโหลดรายการ...</Text>
+            </View>
+        ) : filteredOffers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+                <Ionicons name="chatbubbles-outline" size={80} color="#CCCCCC" />
+                <Text style={styles.emptyText}>ไม่พบรายการเจรจาในหมวดหมู่นี้</Text>
+                <Text style={styles.emptySubText}>
+                    {userRole === 'farmer' 
+                        ? 'รอผู้ซื้อยื่นข้อเสนอเข้ามา หรือลองเลือกหมวดหมู่อื่น'
+                        : 'ไปที่ "ตลาดลำไย" เพื่อเลือกสินค้าและกดเจรจา หรือลองเลือกหมวดหมู่อื่น'
+                    }
+                </Text>
+                <TouchableOpacity onPress={fetchOffers} style={styles.retryButton}>
+                    <Text style={styles.retryButtonText}>โหลดใหม่ทั้งหมด</Text>
+                </TouchableOpacity>
+            </View>
+        ) : (
+            <FlatList
+                data={filteredOffers} 
+                // [📍 แก้ไข: ส่ง navigation ไปให้ OfferItem แทน onAction และ userRole]
+                renderItem={({ item }) => <OfferItem item={item} navigation={navigation} />}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.listContainer}
+                refreshing={loading}
+                onRefresh={fetchOffers}
+            />
+        )}
       
     </SafeAreaView>
   );
@@ -213,4 +285,34 @@ const styles = StyleSheet.create({
     color: '#1E9E4F',
     fontWeight: 'bold',
   },
+  
+  // [📍 Styles ใหม่สำหรับ Filter Tab]
+  filterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginHorizontal: 4,
+    alignItems: 'center',
+  },
+  filterButtonActive: {
+    backgroundColor: '#1E9E4F', 
+  },
+  filterButtonText: {
+    color: '#555',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  filterButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  
+  // [📍 ลบ Styles ส่วน Action ออกไปเพื่อให้โค้ดสะอาดขึ้น]
 });

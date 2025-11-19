@@ -13,7 +13,7 @@ const NEGOS_COL = "negotiations";
 /**
  * โหลด order + ตีความว่าใครเป็น factory / farmer จาก order.type
  * - ถ้า order.type = "sell" → ownerId = farmer, actor = factory
- * - ถ้า order.type = "buy"  → ownerId = factory, actor = farmer
+ * - ถ้า order.type = "buy"  → ownerId = factory, actor = farmer
  */
 async function resolveRoles(
   orderId: string,
@@ -142,15 +142,18 @@ export async function createOrUpdateNegotiation(opts: {
 }
 
 /**
- * เปลี่ยนสถานะ negotiation (accept / reject / cancel)
+ * เปลี่ยนสถานะ negotiation (accept / reject / cancel / counter)
  * - ถ้า accepted → อัปเดต order.status = "matched" + finalPrice + matchedAt
+ * - ถ้า negotiating → อัปเดต offeredPrice และ lastSide
  */
 export async function updateNegotiationStatus(opts: {
   negotiationId: string;
   actorId: string;
-  newStatus: NegotiationStatus; // "accepted" | "rejected" | "cancelled"
+  // 📍 [แก้ไข] เปลี่ยนจาก newStatus เป็น action เพื่อรองรับ negotiating
+  action: 'accepted' | 'rejected' | 'cancelled' | 'negotiating';
+  newPrice?: number; // 📍 [เพิ่ม] สำหรับการต่อรองราคา
 }): Promise<Negotiation & { id: string }> {
-  const { negotiationId, actorId, newStatus } = opts;
+  const { negotiationId, actorId, action, newPrice } = opts; // 📍 [แก้ไข]
 
   const snap = await db.collection(NEGOS_COL).doc(negotiationId).get();
   if (!snap.exists) throw new Error("negotiation_not_found");
@@ -161,25 +164,46 @@ export async function updateNegotiationStatus(opts: {
     throw new Error("negotiation_not_open");
   }
 
-  // ตรวจว่า actorId เป็นหนึ่งในคู่เจรจา
-  if (actorId !== data.farmerId && actorId !== data.factoryId) {
+  // ตรวจว่า actorId เป็นหนึ่งในคู่เจรจา และหา actorSide
+  let actorSide: NegotiationSide;
+  if (actorId === data.farmerId) actorSide = "farmer";
+  else if (actorId === data.factoryId) actorSide = "factory";
+  else {
     throw new Error("actor_not_in_negotiation");
   }
 
   const nowDate = Timestamp.now().toDate();
 
-  const updated: Negotiation = {
-    ...data,
-    status: newStatus,
+  // 📍 Logic การอัปเดต
+  const updatePayload: Partial<Negotiation> = {
     updatedAt: nowDate,
   };
 
+  if (action === 'negotiating') {
+    // อัปเดตราคาใหม่และระบุว่าใครต่อรองล่าสุด
+    if (newPrice === undefined) {
+      // Route ควรจะดักแล้ว แต่ใส่ไว้เพื่อความปลอดภัย
+      throw new Error("newPrice_required_for_negotiating");
+    }
+    updatePayload.offeredPrice = newPrice;
+    updatePayload.lastSide = actorSide;
+    // status ยังคงเป็น 'open' 
+  } else {
+    // 'accepted', 'rejected', หรือ 'cancelled' คือสถานะสุดท้าย
+    updatePayload.status = action as NegotiationStatus;
+    if (action === 'accepted') {
+      // ถ้า accepted ให้ใช้ offeredPrice เป็น finalPrice 
+      updatePayload.finalPrice = data.offeredPrice ?? null;
+    }
+  }
+
+
   const batch = db.batch();
   const negoRef = db.collection(NEGOS_COL).doc(negotiationId);
-  batch.set(negoRef, updated, { merge: true });
+  batch.set(negoRef, updatePayload, { merge: true }); // อัปเดตเฉพาะ field ที่เปลี่ยนไป
 
   // ถ้า accept → ปิดดีล + เซ็ต finalPrice + อัปเดต order
-  if (newStatus === "accepted") {
+  if (action === "accepted") {
     const orderRef = db.collection(ORDERS_COL).doc(data.orderId);
     batch.set(
       orderRef,
@@ -194,6 +218,12 @@ export async function updateNegotiationStatus(opts: {
   }
 
   await batch.commit();
+  // ประกอบร่างข้อมูลที่อัปเดตแล้วเพื่อคืนค่ากลับไป
+  const updated: Negotiation = {
+    ...data,
+    ...updatePayload,
+  } as Negotiation;
+
   return { id: negotiationId, ...updated };
 }
 
