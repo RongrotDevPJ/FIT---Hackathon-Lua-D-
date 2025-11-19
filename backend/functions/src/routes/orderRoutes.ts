@@ -5,6 +5,7 @@ import { Order } from "../models/Order";
 import { findMatchesForOrder } from "../services/orderService";
 import {
   createOrUpdateNegotiation,
+  // 📍 [สำคัญ] ฟังก์ชันนี้ต้องถูกแก้ไขใน negotiationService.ts ในขั้นตอนถัดไป
   updateNegotiationStatus,
   listNegotiationsOfOrder,
   listNegotiationsByFarmer,
@@ -17,11 +18,11 @@ const router = Router();
 /** POST /orders — สร้างออเดอร์ + ประเมินราคากลาง */
 router.post("/orders", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { 
+    const {
       type, ownerId, province, amphoe, grade, amountKg, requestedPrice,
-      deliveryDate, details // (เพิ่ม 2 field นี้)
+      deliveryDate, details
     } = req.body ?? {};
-    
+
     if (
       !type || !ownerId || !province || !amphoe || !grade ||
       requestedPrice === undefined || amountKg === undefined
@@ -44,7 +45,7 @@ router.post("/orders", async (req: Request, res: Response): Promise<void> => {
       requestedPrice: Number(requestedPrice),
       status: "open",
       createdAt: new Date(),
-      
+
       // (เพิ่ม 2 field นี้)
       deliveryDate: deliveryDate ? String(deliveryDate) : null,
       details: details ? String(details) : null,
@@ -78,10 +79,9 @@ router.get("/orders/my", async (req: Request, res: Response): Promise<void> => {
     let ref: FirebaseFirestore.Query = db.collection("orders")
       .where("ownerId", "==", String(ownerId));
 
-    if (type)     ref = ref.where("type", "==", String(type));                 // "sell" | "buy"
-    // 📍 แก้ไข: ลบ filter status ออก เพื่อให้แสดงรายการทั้งหมด
-    if (status)   ref = ref.where("status", "==", String(status));             // "open" | "matched" | "closed"
-    if (grade)    ref = ref.where("grade", "==", String(grade).toUpperCase()); // "AA" | "A" | "B" | "C" | "CC"
+    if (type) ref = ref.where("type", "==", String(type));                 // "sell" | "buy"
+    if (status) ref = ref.where("status", "==", String(status));             // "open" | "matched" | "closed"
+    if (grade) ref = ref.where("grade", "==", String(grade).toUpperCase()); // "AA" | "A" | "B" | "C" | "CC"
     if (province) ref = ref.where("province", "==", String(province));
 
     ref = ref.orderBy("createdAt", "desc").limit(limit);
@@ -93,19 +93,19 @@ router.get("/orders/my", async (req: Request, res: Response): Promise<void> => {
     }
 
     const snap = await ref.get();
-    
-    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String เพื่อป้องกัน 500 Error
+
+    // 📍 [FIX]: แปลง Timestamp เป็น ISO String
     const items = snap.docs.map(d => {
-        const data = d.data();
-        return { 
-            id: d.id, 
-            ...data,
-            // แปลง Timestamp ใน Firestore เป็น ISO String
-            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-            matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
-        }
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        // แปลง Timestamp ใน Firestore เป็น ISO String
+        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+        matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
+      }
     });
-    
+
     const nextCursor = snap.docs.length ? snap.docs[snap.docs.length - 1].id : null;
 
     res.json({ items, nextCursor });
@@ -126,9 +126,9 @@ router.get("/orders", async (req: Request, res: Response): Promise<void> => {
     if (limit > 100) limit = 100;
 
     let ref: FirebaseFirestore.Query = db.collection("orders");
-    if (ownerId)  ref = ref.where("ownerId", "==", String(ownerId));
-    if (status)   ref = ref.where("status", "==", String(status));             // ตามสคีมา
-    if (grade)    ref = ref.where("grade", "==", String(grade).toUpperCase());
+    if (ownerId) ref = ref.where("ownerId", "==", String(ownerId));
+    if (status) ref = ref.where("status", "==", String(status));             // ตามสคีมา
+    if (grade) ref = ref.where("grade", "==", String(grade).toUpperCase());
     if (province) ref = ref.where("province", "==", String(province));
 
     ref = ref.orderBy("createdAt", "desc").limit(limit);
@@ -140,15 +140,15 @@ router.get("/orders", async (req: Request, res: Response): Promise<void> => {
     }
 
     const snap = await ref.get();
-    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String
+    // 📍 [FIX]: แปลง Timestamp เป็น ISO String
     const items = snap.docs.map(d => {
-        const data = d.data();
-        return { 
-            id: d.id, 
-            ...data,
-            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-            matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
-        }
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+        matchedAt: data.matchedAt ? data.matchedAt.toDate().toISOString() : null,
+      }
     });
     const nextCursor = snap.docs.length ? snap.docs[snap.docs.length - 1].id : null;
 
@@ -185,16 +185,16 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response): Prom
       .orderBy("updatedAt", "desc")
       .limit(limit)
       .get();
-    
-    // 📍 [CRITICAL FIX]: แปลง Timestamp เป็น ISO String
+
+    // 📍 [FIX]: แปลง Timestamp เป็น ISO String
     const items = snap.docs.map(d => {
-        const data = d.data();
-        return { 
-            id: d.id, 
-            ...data,
-            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-            updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
-        }
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+        updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
+      }
     });
     res.json({ items });
     return;
@@ -202,7 +202,8 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response): Prom
     res.status(500).json({ error: e.message }); return;
   }
 });
-// GET /orders/:id/matches  → หาออเดอร์ที่เข้าคู่
+
+// GET /orders/:id/matches  → หาออเดอร์ที่เข้าคู่
 router.get("/orders/:id/matches", async (req: Request, res: Response) => {
   try {
     let limit = Number(req.query.limit ?? 20);
@@ -219,6 +220,7 @@ router.get("/orders/:id/matches", async (req: Request, res: Response) => {
     return res.status(500).json({ error: e?.message ?? "internal_error" });
   }
 });
+
 router.post("/orders/:id/negotiations", async (req: Request, res: Response) => {
   try {
     const orderId = req.params.id;
@@ -263,23 +265,69 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response) => {
     return res.status(500).json({ error: e.message });
   }
 });
-router.patch("/negotiations/:id", async (req: Request, res: Response) => {
+
+
+// -----------------------------------------------------------
+// ✅ [เพิ่ม ROUTE ใหม่สำหรับดึงรายละเอียดการเจรจาเดียว]
+// -----------------------------------------------------------
+/** GET /negotiations/:id - ดึงรายละเอียดการเจรจาเดียว */
+router.get("/negotiations/:id", async (req: Request, res: Response) => {
+  try {
+    const doc = await db.collection("negotiations").doc(req.params.id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "negotiation_not_found" });
+    }
+
+    const data = doc.data();
+    // แปลง Timestamp เพื่อให้ Frontend รับได้
+    const item = {
+      id: doc.id,
+      ...data,
+      createdAt: data?.createdAt && typeof data.createdAt.toDate === 'function'
+        ? data.createdAt.toDate().toISOString()
+        : data?.createdAt,
+      updatedAt: data?.updatedAt && typeof data.updatedAt.toDate === 'function'
+        ? data.updatedAt.toDate().toISOString()
+        : data?.updatedAt,
+    }
+
+    return res.json(item);
+  } catch (e: any) {
+    console.error(e);
+    return res.status(500).json({ error: e.message ?? "internal_error" });
+  }
+});
+
+// -----------------------------------------------------------
+// ✅ [แก้ไข ROUTE อัปเดตสถานะ/ราคา (เปลี่ยนจาก PATCH เป็น PUT และรองรับ Counter)]
+// -----------------------------------------------------------
+/** PUT /negotiations/:id - อัปเดตสถานะหรือราคา (Accept/Reject/Counter) */
+router.put("/negotiations/:id", async (req: Request, res: Response) => {
   try {
     const negotiationId = req.params.id;
-    const { actorId, status } = req.body ?? {};
+    // 📍 แก้ไข: รับ 'action' และ 'newPrice'
+    const { actorId, action, newPrice } = req.body ?? {};
 
-    if (!actorId || !status) {
+    if (!actorId || !action) {
       return res.status(400).json({ error: "missing_fields" });
     }
 
-    if (!["accepted", "rejected", "cancelled"].includes(status)) {
-      return res.status(400).json({ error: "invalid_status" });
+    if (!["accepted", "rejected", "negotiating", "cancelled"].includes(action)) {
+      return res.status(400).json({ error: "invalid_action" });
     }
 
+    // ตรวจสอบว่าถ้า action เป็น 'negotiating' ต้องมี newPrice และเป็นตัวเลข
+    const priceValue = Number(newPrice);
+    if (action === 'negotiating' && (newPrice === undefined || isNaN(priceValue) || priceValue <= 0)) {
+      return res.status(400).json({ error: "newPrice_invalid_or_missing_for_negotiating" });
+    }
+
+    // 📍 อัปเดต: เรียกใช้ updateNegotiationStatus ด้วย action และ newPrice
     const updated = await updateNegotiationStatus({
       negotiationId,
       actorId: String(actorId),
-      newStatus: status,
+      action: action, // ส่ง action ใหม่ไป
+      newPrice: priceValue > 0 ? priceValue : undefined, // ส่งราคาใหม่ไปถ้ามีการต่อรอง
     });
 
     return res.json(updated);
@@ -292,9 +340,9 @@ router.patch("/negotiations/:id", async (req: Request, res: Response) => {
   }
 });
 
+
 /** * GET /negotiations
  * 📍 FIX: แปลง Timestamp เป็น ISO String ก่อนส่งกลับ
- * เพื่อป้องกัน Error 500 หรือข้อมูลวันที่ไม่ถูกต้องที่หน้า OffersScreen 
  */
 router.get("/negotiations", async (req: Request, res: Response) => {
   try {
@@ -319,13 +367,13 @@ router.get("/negotiations", async (req: Request, res: Response) => {
 
     // ✅ [FIX] แปลง Timestamp เป็น ISO String
     const items = rawItems.map((item: any) => ({
-        ...item,
-        createdAt: item.createdAt && typeof item.createdAt.toDate === 'function' 
-            ? item.createdAt.toDate().toISOString() 
-            : item.createdAt,
-        updatedAt: item.updatedAt && typeof item.updatedAt.toDate === 'function' 
-            ? item.updatedAt.toDate().toISOString() 
-            : item.updatedAt,
+      ...item,
+      createdAt: item.createdAt && typeof item.createdAt.toDate === 'function'
+        ? item.createdAt.toDate().toISOString()
+        : item.createdAt,
+      updatedAt: item.updatedAt && typeof item.updatedAt.toDate === 'function'
+        ? item.updatedAt.toDate().toISOString()
+        : item.updatedAt,
     }));
 
     return res.json({ items });
