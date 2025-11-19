@@ -2,73 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
-  ScrollView, Image, ActivityIndicator, Alert
+  ScrollView, FlatList, ActivityIndicator, Image 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { Ionicons } from '@expo/vector-icons'; 
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { API_BASE_URL } from './apiConfig'; 
-
-
-// --- Component สำหรับแสดงรายการซื้อ (Preview) ---
-const BuyOfferPreviewItem = ({ item, navigation }) => {
-    const amount = item.amountKg || 0;
-    const price = item.requestedPrice || 0;
-    
-    return (
-        <TouchableOpacity 
-            style={styles.previewCard}
-            onPress={() => navigation.navigate('ListingDetail', { item: item, source: 'buy_offer' })} 
-        >
-            <View style={styles.cardDetail}>
-                <Text style={styles.cardType}>รับซื้อเกรด {item.grade}</Text>
-                <View style={styles.locationRow}>
-                    <Ionicons name="location-outline" size={12} color="#888" />
-                    <Text style={styles.cardLocation}>{` ${item.province}`}</Text> 
-                </View>
-                <Text style={styles.cardAmount}>ปริมาณ: {amount.toLocaleString()} กก.</Text>
-            </View>
-            <View style={styles.cardPrice}>
-                <Text style={styles.priceValue}>{price.toFixed(2)}</Text>
-                <Text style={styles.priceUnit}>บาท/กก.</Text>
-            </View>
-        </TouchableOpacity>
-    );
-};
-
-
-// --- Component สำหรับแสดงรายการขาย (ของเกษตรกรเอง) ---
-const ListingItem = ({ item }) => {
-    const getStatusStyle = (status) => {
-        switch (status) {
-          case 'open': return { color: '#1E9E4F', text: 'กำลังขาย (เปิดรับข้อเสนอ)' }; 
-          case 'matched': return { color: '#0D6EfD', text: 'ดีลสำเร็จ / กำลังดำเนินการ' }; 
-          case 'closed': return { color: '#D32F2F', text: 'ขายเสร็จสิ้น' }; 
-          default: return { color: '#888', text: 'สถานะไม่ทราบ' };
-        }
-      };
-      const orderStatus = item.status || 'open'; 
-      const statusStyle = getStatusStyle(orderStatus);
-    
-      return (
-        <TouchableOpacity style={styles.listingCard}>
-          <View style={styles.listingHeaderContent}>
-            <Text style={styles.listingProduct}>ลำไยเกรด ({item.grade})</Text>
-            <Text style={[styles.listingStatus, { color: statusStyle.color }]}>
-              {statusStyle.text}
-            </Text>
-          </View>
-          <View style={styles.listingBody}>
-            <Text style={styles.listingDetail}>
-                <Text style={styles.boldText}>{item.amountKg.toLocaleString()}</Text>
-                {/* ✅ แก้ไข: ใช้ Template Literal รวม string เพื่อป้องกัน error text string */}
-                {` กก. @ ${item.requestedPrice.toFixed(2)} บ./กก.`}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-};
-
 
 export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState("ผู้ใช้งาน"); 
@@ -78,351 +17,250 @@ export default function HomeScreen({ navigation }) {
   const [topBuyListings, setTopBuyListings] = useState([]); 
   const [loading, setLoading] = useState(true);
 
+  // ฟังก์ชันโหลดข้อมูล
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const userId = await AsyncStorage.getItem('userId');
-    if (!userId) {
-      setLoading(false);
-      return; 
-    }
-
     try {
-      // 1. ดึงข้อมูล User
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) { setLoading(false); return; }
+
+      // 1. ข้อมูล User
       const userRes = await fetch(`${API_BASE_URL}/usersApi/${userId}`);
       if (userRes.ok) {
         const userData = await userRes.json();
         setUserName(userData.name || "ผู้ใช้งาน");
       }
       
-      // 2. ดึงรายการขายทั้งหมดของผู้ใช้
+      // 2. รายการขายของเรา (My Sell Orders)
       const listingsRes = await fetch(`${API_BASE_URL}/orderApi/orders/my?ownerId=${userId}&type=sell&limit=5`);
       if (listingsRes.ok) {
-        const listingsData = await listingsRes.json();
-        // ✅ ป้องกัน TypeError: ตรวจสอบ Array ก่อนใช้
-        const items = listingsData && Array.isArray(listingsData.items) ? listingsData.items : [];
+        const data = await listingsRes.json();
+        const items = data?.items || [];
         setLatestListings(items);
         setTotalListings(items.length);
-      } else {
-        setLatestListings([]);
-        setTotalListings(0);
       }
       
-      // 3. ดึงจำนวนข้อเสนอ (Negotiations)
+      // 3. ข้อเสนอ (Negotiations)
       const offersRes = await fetch(`${API_BASE_URL}/orderApi/negotiations?farmerId=${userId}`);
       if (offersRes.ok) {
-        const offersData = await offersRes.json();
-        // ✅ ป้องกัน TypeError: ตรวจสอบ Array ก่อนใช้
-        const items = offersData && Array.isArray(offersData.items) ? offersData.items : [];
-        const pendingOffers = items.filter(item => item.status === 'open');
-        setTotalOffers(pendingOffers.length);
-      } else {
-        setTotalOffers(0);
+        const data = await offersRes.json();
+        const items = data?.items || [];
+        const pending = items.filter(i => i.status === 'open');
+        setTotalOffers(pending.length);
       }
 
-      // 4. ดึงรายการประกาศรับซื้อล่าสุด (Market data)
+      // 4. ประกาศรับซื้อจากตลาด (Market Buy Orders)
       const marketRes = await fetch(`${API_BASE_URL}/orderApi/orders?status=open`);
       if (marketRes.ok) {
-        const marketData = await marketRes.json();
-        // ✅ ป้องกัน TypeError: ตรวจสอบ Array ก่อนใช้
-        const items = marketData && Array.isArray(marketData.items) ? marketData.items : [];
-        const buyOrders = items.filter(item => item.type === 'buy').slice(0, 3);
-        setTopBuyListings(buyOrders);
-      } else {
-        setTopBuyListings([]);
+        const data = await marketRes.json();
+        const items = data?.items || [];
+        const buys = items.filter(i => i.type === 'buy').slice(0, 3);
+        setTopBuyListings(buys);
       }
 
     } catch (e) {
-      console.error("Home Data Fetch Error:", e);
-      // ไม่ต้อง Alert ทุกครั้งเพื่อไม่ให้กวนผู้ใช้ ถ้าโหลดไม่ผ่านแค่แสดงข้อมูลว่าง
+      console.error("Home Fetch Error:", e);
     } finally {
       setLoading(false);
     }
   }, []); 
 
   useFocusEffect(
-    useCallback(() => {
-      fetchData();
-      return () => {};
-    }, [fetchData]) 
+    useCallback(() => { fetchData(); }, [fetchData]) 
   );
 
+  // Navigation Helpers
   const goToCreateListing = () => navigation.navigate('CreateListing'); 
   const goToOffers = () => navigation.navigate('OffersTab'); 
   const goToProfile = () => navigation.navigate('ProfileTab'); 
-  const goToDeals = () => navigation.navigate('OffersTab'); 
+  const goToMarket = () => navigation.navigate('MarketTab'); // สมมติว่าไปหน้าตลาดรวม
 
-  // Function สำหรับ Render ส่วนประกาศรับซื้อ
-  const renderBuyOffers = () => {
-    if (loading && topBuyListings.length === 0) {
-      return <ActivityIndicator size="small" color="#0D6EfD" style={{padding: 15}} />;
-    }
-    
-    if (topBuyListings.length === 0) {
-        return (
-            <View style={styles.emptyListing}>
-                <Ionicons name="cart-outline" size={40} color="#AAAAAA" />
-                <Text style={styles.emptyText}>ยังไม่มีประกาศรับซื้อ</Text>
-                <Text style={styles.emptySubText}>สามารถสร้างประกาศขายรอได้ทันที</Text>
+  // --- Component: การ์ดประกาศรับซื้อ (Buy Offer) ---
+  const renderBuyOfferItem = ({ item }) => (
+    <TouchableOpacity 
+        style={styles.buyCard}
+        onPress={() => navigation.navigate('ListingDetail', { item, source: 'buy_offer' })}
+    >
+        <View style={styles.buyCardHeader}>
+            <View style={styles.buyBadge}>
+                <Text style={styles.buyBadgeText}>รับซื้อ</Text>
             </View>
-        );
-    }
-    
-    return (
-      <View>
-          {topBuyListings.map((item, index) => (
-              <BuyOfferPreviewItem 
-                  key={item.id || index} 
-                  item={item} 
-                  navigation={navigation} 
-              />
-          ))}
-          <TouchableOpacity style={styles.seeAllButton} onPress={goToDeals}>
-              <Text style={styles.seeAllButtonText}>เข้าสู่หน้าข้อเสนอเพื่อดูทั้งหมด</Text>
-              <Ionicons name="chevron-forward" size={16} color="#1E9E4F" />
-          </TouchableOpacity>
-      </View>
-    );
-  };
+            <Text style={styles.dateText}>{new Date(item.createdAt || Date.now()).toLocaleDateString('th-TH')}</Text>
+        </View>
+        
+        <Text style={styles.buyTitle}>ต้องการลำไยเกรด {item.grade}</Text>
+        <View style={styles.buyInfoRow}>
+            <Ionicons name="location-outline" size={14} color="#666" />
+            <Text style={styles.buyInfoText}>{item.province || 'ไม่ระบุ'}</Text>
+        </View>
 
+        <View style={styles.buyFooter}>
+            <Text style={styles.buyAmount}>จำนวน: {Number(item.amountKg).toLocaleString()} กก.</Text>
+            <Text style={styles.buyPrice}>{Number(item.requestedPrice).toFixed(2)} ฿/กก.</Text>
+        </View>
+    </TouchableOpacity>
+  );
+
+  // --- Component: การ์ดสินค้าของฉัน (My Listing) ---
+  const renderMyListingItem = ({ item }) => (
+    <TouchableOpacity style={styles.myCard} onPress={() => navigation.navigate('ListingDetail', { item })}>
+        <View style={styles.myCardIcon}>
+            <Ionicons name="leaf" size={24} color="#fff" />
+        </View>
+        <View style={styles.myCardContent}>
+            <Text style={styles.myCardTitle}>ลำไยเกรด {item.grade}</Text>
+            <Text style={styles.myCardSubtitle}>{Number(item.amountKg).toLocaleString()} กก.</Text>
+        </View>
+        <View style={styles.myCardStatus}>
+             <Text style={[styles.statusLabel, { color: item.status==='open' ? '#1E9E4F' : '#888' }]}>
+                {item.status === 'open' ? 'เปิดขาย' : item.status}
+             </Text>
+             <Text style={styles.priceLabel}>{item.requestedPrice} ฿</Text>
+        </View>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         
+        {/* --- Header --- */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerGreeting}>สวัสดี คุณ{userName}</Text>
-            <Text style={styles.headerTitle}>จัดการประกาศขายของคุณ</Text>
+            <Text style={styles.headerGreeting}>สวัสดี, คุณ{userName}</Text>
+            <Text style={styles.headerSubtitle}>วันนี้คุณต้องการทำอะไร?</Text>
           </View>
-          <TouchableOpacity style={styles.profileButton} onPress={goToProfile}>
-            <Ionicons name="person-circle-outline" size={32} color="#1E9E4F" />
+          <TouchableOpacity style={styles.profileIcon} onPress={goToProfile}>
+            <Ionicons name="person" size={20} color="#FFF" />
           </TouchableOpacity>
         </View>
 
+        {/* --- Stats Dashboard --- */}
         <View style={styles.statsContainer}>
-          {/* Stat Card 1: รายการทั้งหมด */}
-          <View style={[styles.statCard, {borderLeftColor: '#0D6EfD'}]}>
-            <Ionicons name="list" size={32} color="#0D6EfD" />
-            <View style={styles.statContent}>
-              {/* ✅ แก้ไข: แยก ActivityIndicator ออกจาก Text */}
-              {loading ? (
-                  <ActivityIndicator size="small" color="#0D6EfD" />
-              ) : (
-                  <Text style={styles.statNumber}>{totalListings}</Text>
-              )}
-              <Text style={styles.statLabel}>รายการทั้งหมด</Text>
+            <View style={styles.statBox}>
+                <Text style={styles.statNumber}>{totalListings}</Text>
+                <Text style={styles.statLabel}>รายการขาย</Text>
             </View>
-          </View>
-
-          {/* Stat Card 2: ข้อเสนอรอตอบรับ */}
-          <TouchableOpacity 
-            style={[styles.statCard, {borderLeftColor: '#1E9E4F'}]}
-            onPress={goToOffers} 
-          >
-            <Ionicons name="chatbubbles" size={32} color="#1E9E4F" />
-            <View style={styles.statContent}>
-               {/* ✅ แก้ไข: แยก ActivityIndicator ออกจาก Text */}
-               {loading ? (
-                  <ActivityIndicator size="small" color="#1E9E4F" />
-              ) : (
-                  <Text style={styles.statNumber}>{totalOffers}</Text>
-              )}
-              <Text style={styles.statLabel}>ข้อเสนอรอตอบรับ</Text>
+            <View style={[styles.statBox, styles.statBoxActive]}>
+                <Text style={[styles.statNumber, {color: '#FFF'}]}>{totalOffers}</Text>
+                <Text style={[styles.statLabel, {color: '#E8F5E9'}]}>ข้อเสนอรอคุณ</Text>
             </View>
-          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.postButton} onPress={goToCreateListing}>
-          <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
-          <Text style={styles.postButtonText}>สร้างประกาศขายผลผลิต</Text>
+        {/* --- Main Action Button --- */}
+        <TouchableOpacity style={styles.createButton} onPress={goToCreateListing}>
+            <View style={styles.createButtonIcon}>
+                <Ionicons name="add" size={30} color="#1E9E4F" />
+            </View>
+            <View>
+                <Text style={styles.createButtonText}>สร้างประกาศขาย</Text>
+                <Text style={styles.createButtonSub}>ลงประกาศขายผลผลิตของคุณ</Text>
+            </View>
         </TouchableOpacity>
+
+        {/* --- Section 1: ประกาศรับซื้อ (Factory Demand) --- */}
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>ความต้องการรับซื้อล่าสุด</Text>
+            <TouchableOpacity onPress={goToMarket}>
+                <Text style={styles.seeAllText}>ดูทั้งหมด</Text>
+            </TouchableOpacity>
+        </View>
+
+        <View style={styles.horizontalList}>
+            {loading ? <ActivityIndicator color="#1E9E4F" /> : 
+             topBuyListings.length === 0 ? (
+                <Text style={styles.emptyText}>ยังไม่มีประกาศรับซื้อ</Text>
+             ) : (
+                topBuyListings.map((item, index) => (
+                    <View key={index} style={{marginBottom: 10}}>
+                        {renderBuyOfferItem({ item })}
+                    </View>
+                ))
+            )}
+        </View>
+
+        {/* --- Section 2: รายการขายของฉัน (My Listings) --- */}
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>รายการขายของคุณ</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('MyListings')}>
+                <Text style={styles.seeAllText}>จัดการ</Text>
+            </TouchableOpacity>
+        </View>
+
+        <View style={styles.verticalList}>
+            {loading ? <ActivityIndicator color="#1E9E4F" /> : 
+             latestListings.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Ionicons name="basket-outline" size={40} color="#CCC" />
+                    <Text style={styles.emptyText}>คุณยังไม่มีรายการขาย</Text>
+                </View>
+             ) : (
+                latestListings.map((item, index) => (
+                    <View key={index} style={{marginBottom: 10}}>
+                        {renderMyListingItem({ item })}
+                    </View>
+                ))
+            )}
+        </View>
         
-        <View style={[styles.listingHeader, {marginTop: 25}]}> 
-            <Text style={styles.listingTitle}>ประกาศรับซื้อล่าสุดจากโรงงาน</Text>
-            <TouchableOpacity onPress={goToDeals}><Text style={styles.viewAll}>ดูทั้งหมด</Text></TouchableOpacity>
-        </View>
-        <View style={styles.buyOfferContainer}>
-            {renderBuyOffers()}
-        </View>
-        
-        <View style={styles.listingHeader}>
-            <Text style={styles.listingTitle}>รายการขายล่าสุด (ของคุณ)</Text>
-            <TouchableOpacity onPress={goToOffers}><Text style={styles.viewAll}>ดูข้อเสนอทั้งหมด</Text></TouchableOpacity>
-        </View>
-        
-        <View style={styles.listingContainer}>
-          {loading && latestListings.length === 0 ? (
-            <ActivityIndicator size="large" color="#1E9E4F" style={{padding: 40}} />
-          ) : latestListings.length === 0 ? (
-            <View style={styles.emptyListing}>
-                <Ionicons name="leaf-outline" size={40} color="#CCCCCC" />
-                <Text style={styles.emptyText}>ยังไม่มีประกาศขาย</Text>
-                <Text style={styles.emptySubText}>กดปุ่ม "สร้างประกาศขายผลผลิต" เพื่อเริ่มต้น</Text>
-            </View>
-          ) : (
-            latestListings.map(item => <ListingItem key={item.id} item={item} />)
-          )}
-        </View>
+        {/* Spacer for scrolling */}
+        <View style={{height: 40}} />
 
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F4F4F4', 
-  },
-  container: {
-    flexGrow: 1, 
-  },
-  header: {
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  headerGreeting: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  headerTitle: { fontSize: 16, color: '#888' },
-  profileButton: { padding: 5 },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 10,
-    marginTop: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 15,
-    marginHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-    borderLeftWidth: 5,
-  },
-  statContent: { marginLeft: 10, justifyContent: 'center' },
-  statNumber: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  statLabel: { fontSize: 14, color: '#555' },
-  postButton: {
-    backgroundColor: '#1E9E4F',
-    borderRadius: 12,
-    paddingVertical: 15,
-    marginHorizontal: 20,
-    marginTop: 15, 
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    shadowColor: '#1E9E4F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
-    marginBottom: 20, 
-  },
-  postButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginLeft: 10,
-  },
-  listingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 25, 
-    marginBottom: 10,
-  },
-  listingTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  viewAll: { fontSize: 14, color: '#1E9E4F', fontWeight: 'bold' },
-  listingContainer: { paddingHorizontal: 20, paddingBottom: 20 },
-  buyOfferContainer: { paddingHorizontal: 20 },
-  emptyListing: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    backgroundColor: '#FAFAFA',
-    borderRadius: 12,
-    marginVertical: 10,
-  },
-  emptyText: { fontSize: 16, fontWeight: 'bold', color: '#888', marginTop: 10 },
-  emptySubText: { fontSize: 14, color: '#AAA', marginTop: 5 },
-  listingCard: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 10,
-      padding: 15,
-      marginVertical: 5,
-      borderLeftWidth: 4,
-      borderLeftColor: '#1E9E4F', 
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 2,
-  },
-  listingHeaderContent: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 5,
-  },
-  listingProduct: { fontSize: 16, fontWeight: 'bold', color: '#333' },
-  listingStatus: { fontSize: 14, fontWeight: '600' },
-  listingBody: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingTop: 8,
-  },
-  listingDetail: { fontSize: 14, color: '#555' },
-  boldText: { fontWeight: 'bold' },
-  previewCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    borderRadius: 10,
-    marginVertical: 5,
-    borderLeftWidth: 4,
-    borderLeftColor: '#0D6EfD', 
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  cardDetail: { flex: 2 },
-  cardType: { fontSize: 14, fontWeight: 'bold', color: '#0D6EfD' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  cardLocation: { fontSize: 12, color: '#888' },
-  cardAmount: { fontSize: 14, fontWeight: '600', color: '#333', marginTop: 2 },
-  cardPrice: { alignItems: 'flex-end', flex: 1 },
-  priceValue: { fontSize: 18, fontWeight: 'bold', color: '#1E9E4F' },
-  priceUnit: { fontSize: 12, color: '#1E9E4F' },
-  seeAllButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-    marginTop: 5,
-    marginBottom: 10,
-  },
-  seeAllButtonText: {
-    fontSize: 14,
-    color: '#1E9E4F',
-    fontWeight: 'bold',
-    marginRight: 5,
-  }
+  safeArea: { flex: 1, backgroundColor: '#F5F7FA' }, // พื้นหลังเทาอ่อน
+  container: { flex: 1, padding: 20 },
+  
+  // Header
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerGreeting: { fontSize: 22, fontWeight: 'bold', color: '#2D3436' },
+  headerSubtitle: { fontSize: 14, color: '#636E72' },
+  profileIcon: { backgroundColor: '#1E9E4F', padding: 10, borderRadius: 20 },
+
+  // Stats
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  statBox: { flex: 1, backgroundColor: '#FFF', padding: 15, borderRadius: 12, alignItems: 'center', marginRight: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
+  statBoxActive: { backgroundColor: '#1E9E4F', marginRight: 0 }, // กล่องสีเขียว
+  statNumber: { fontSize: 24, fontWeight: 'bold', color: '#2D3436', marginBottom: 5 },
+  statLabel: { fontSize: 12, color: '#636E72' },
+
+  // Create Button (Hero)
+  createButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2D3436', padding: 15, borderRadius: 16, marginBottom: 25, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+  createButtonIcon: { backgroundColor: '#FFF', padding: 8, borderRadius: 12, marginRight: 15 },
+  createButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
+  createButtonSub: { fontSize: 12, color: '#B2BEC3' },
+
+  // Section Headers
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, marginTop: 10 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#2D3436' },
+  seeAllText: { fontSize: 14, color: '#1E9E4F', fontWeight: '600' },
+  emptyText: { color: '#B2BEC3', textAlign: 'center', marginTop: 10 },
+  emptyContainer: { alignItems: 'center', padding: 20, borderStyle: 'dashed', borderWidth: 1, borderColor: '#DDD', borderRadius: 10 },
+
+  // Card: Buy Offer
+  buyCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 12, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: '#0984E3', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  buyCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  buyBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+  buyBadgeText: { color: '#0984E3', fontSize: 10, fontWeight: 'bold' },
+  dateText: { color: '#B2BEC3', fontSize: 12 },
+  buyTitle: { fontSize: 16, fontWeight: 'bold', color: '#2D3436', marginBottom: 5 },
+  buyInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  buyInfoText: { fontSize: 12, color: '#636E72', marginLeft: 5 },
+  buyFooter: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F1F2F6', paddingTop: 10 },
+  buyAmount: { fontSize: 14, color: '#2D3436' },
+  buyPrice: { fontSize: 16, fontWeight: 'bold', color: '#0984E3' },
+
+  // Card: My Listing
+  myCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 12, borderRadius: 12, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  myCardIcon: { backgroundColor: '#1E9E4F', padding: 10, borderRadius: 10, marginRight: 15 },
+  myCardContent: { flex: 1 },
+  myCardTitle: { fontSize: 16, fontWeight: 'bold', color: '#2D3436' },
+  myCardSubtitle: { fontSize: 13, color: '#636E72' },
+  myCardStatus: { alignItems: 'flex-end' },
+  statusLabel: { fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
+  priceLabel: { fontSize: 14, color: '#2D3436', fontWeight: '600' },
 });
