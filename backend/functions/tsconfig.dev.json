@@ -1,5 +1,10 @@
+// backend/functions/tsconfig.dev.json (เป็นทางเลือก)
+
 {
+  "extends": "./tsconfig.json", // <--- แนะนำให้เพิ่มเพื่อให้สืบทอด compilerOptions
   "include": [
-    ".eslintrc.js"
+    "src",
+    ".eslintrc.js",
+    "**/*.test.ts" // <--- แนะนำให้เพิ่มเพื่อให้ Jest ทำงานได้อย่างถูกต้อง
   ]
 }

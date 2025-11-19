@@ -1,3 +1,5 @@
+// backend/functions/tsconfig.json
+
 {
   "compilerOptions": {
     "module": "NodeNext",
@@ -8,7 +10,8 @@
     "outDir": "lib",
     "sourceMap": true,
     "strict": true,
-    "target": "es2017"
+    "target": "es2017",
+    "isolatedModules": true // <--- เพิ่มบรรทัดนี้เพื่อแก้ไข TS151002
   },
   "compileOnSave": true,
   "include": [
