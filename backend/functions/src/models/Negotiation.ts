@@ -1,10 +1,11 @@
 import { GradeType, PriceStatus } from "./Order";
+import type { Timestamp } from "firebase-admin/firestore";
 
 export type NegotiationStatus = "open" | "accepted" | "rejected" | "cancelled";
 export type NegotiationSide = "factory" | "farmer";
 
 export interface Negotiation {
-  id?: string;   // ← optional ตอนสร้างใหม่
+  id?: string;   
 
   orderId: string;
 
@@ -14,17 +15,19 @@ export interface Negotiation {
   province: string;
   amphoe: string;
   grade: GradeType | string;
+  
+  amountKg: number; // ✅ เพิ่ม amountKg สำหรับเจรจาปริมาณ
 
-  requestedPrice: number;     // ราคาตั้งต้นจาก order
-  offeredPrice: number;       // ราคาที่ถูกเสนอในรอบล่าสุด
-  finalPrice?: number | null; // ราคาที่ตกลงสุดท้าย (ตอน accepted)
+  requestedPrice: number;     
+  offeredPrice: number;       
+  finalPrice?: number | null; 
 
   refAvgPrice?: number | null;
   priceStatus?: PriceStatus;
 
   status: NegotiationStatus;
 
-  lastSide?: NegotiationSide; // รอบล่าสุดใครเป็นคนเสนอ (ฝั่งไหน)
-  createdAt: FirebaseFirestore.Timestamp | Date;
-  updatedAt: FirebaseFirestore.Timestamp | Date;
+  lastSide?: NegotiationSide; 
+  createdAt: Timestamp | Date; 
+  updatedAt: Timestamp | Date; 
 }

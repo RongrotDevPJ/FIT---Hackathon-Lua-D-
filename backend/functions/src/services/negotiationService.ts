@@ -1,5 +1,7 @@
 import { db } from "../config/firestore";
 import { Timestamp } from "firebase-admin/firestore";
+// ✅ [แก้ไข]: ใช้ * as admin เพื่อให้แน่ใจว่า Type ของ Query ถูกต้อง
+import * as admin from 'firebase-admin'; 
 import { Order } from "../models/Order";
 import {
   Negotiation,
@@ -12,8 +14,6 @@ const NEGOS_COL = "negotiations";
 
 /**
  * โหลด order + ตีความว่าใครเป็น factory / farmer จาก order.type
- * - ถ้า order.type = "sell" → ownerId = farmer, actor = factory
- * - ถ้า order.type = "buy"  → ownerId = factory, actor = farmer
  */
 async function resolveRoles(
   orderId: string,
@@ -56,18 +56,16 @@ async function resolveRoles(
 
 /**
  * สร้างหรืออัปเดตรอบต่อรอง (counter offer) สำหรับ order หนึ่ง
- * - ถ้าไม่เคยมี negotiation ระหว่าง farmer/factory คู่นี้ → สร้างใหม่
- * - ถ้ามีแล้วและ status = open → อัปเดตรอบล่าสุด (offeredPrice / amount / updatedAt)
  */
 export async function createOrUpdateNegotiation(opts: {
   orderId: string;
   actorId: string;
   offeredPrice: number;
-  amountKg: number;
+  amountKg: number; 
   refAvgPrice?: number | null;
   priceStatus?: string | null;
 }): Promise<Negotiation & { id: string }> {
-  const { orderId, actorId, offeredPrice, refAvgPrice, priceStatus } = opts;
+  const { orderId, actorId, offeredPrice, amountKg, refAvgPrice, priceStatus } = opts; 
 
   const { order, farmerId, factoryId, actorSide } = await resolveRoles(
     orderId,
@@ -101,6 +99,7 @@ export async function createOrUpdateNegotiation(opts: {
       province: order.province,
       amphoe: order.amphoe,
       grade: order.grade,
+      amountKg: amountKg, // บันทึก amountKg ตั้งแต่รอบแรก
 
       requestedPrice: order.requestedPrice,
       offeredPrice,
@@ -122,9 +121,20 @@ export async function createOrUpdateNegotiation(opts: {
     const ref = snap.docs[0].ref;
     const data = snap.docs[0].data() as Negotiation;
 
+    // [CHECK]: ตรวจสอบว่าฝ่ายที่กำลังจะต่อรองราคา (counter offer) ไม่ใช่ฝ่ายเดิม
+    if (actorSide === data.lastSide) {
+      throw new Error("negotiation_not_your_turn");
+    }
+    
+    // [LOGIC]: หากเป็นรอบต่อรอง ต้องตรวจสอบว่า Farmer ไม่ได้เปลี่ยน amountKg
+    if (actorSide === 'farmer' && amountKg !== data.amountKg) {
+      throw new Error("farmer_cannot_change_amount_during_counter_offer");
+    }
+
     const updated: Negotiation = {
       ...data,
       offeredPrice,
+      amountKg: amountKg, // อัปเดต amountKg
       lastSide: actorSide,
       // อัปเดต refAvgPrice/priceStatus ถ้าส่งมาใหม่
       refAvgPrice:
@@ -143,17 +153,15 @@ export async function createOrUpdateNegotiation(opts: {
 
 /**
  * เปลี่ยนสถานะ negotiation (accept / reject / cancel / counter)
- * - ถ้า accepted → อัปเดต order.status = "matched" + finalPrice + matchedAt
- * - ถ้า negotiating → อัปเดต offeredPrice และ lastSide
  */
 export async function updateNegotiationStatus(opts: {
   negotiationId: string;
   actorId: string;
-  // 📍 [แก้ไข] เปลี่ยนจาก newStatus เป็น action เพื่อรองรับ negotiating
   action: 'accepted' | 'rejected' | 'cancelled' | 'negotiating';
-  newPrice?: number; // 📍 [เพิ่ม] สำหรับการต่อรองราคา
+  newPrice?: number; 
+  newAmountKg?: number; 
 }): Promise<Negotiation & { id: string }> {
-  const { negotiationId, actorId, action, newPrice } = opts; // 📍 [แก้ไข]
+  const { negotiationId, actorId, action, newPrice, newAmountKg } = opts; 
 
   const snap = await db.collection(NEGOS_COL).doc(negotiationId).get();
   if (!snap.exists) throw new Error("negotiation_not_found");
@@ -172,9 +180,14 @@ export async function updateNegotiationStatus(opts: {
     throw new Error("actor_not_in_negotiation");
   }
 
+  // [CHECK]: ตรวจสอบตาเดินของคู่เจรจา
+  if (action !== 'cancelled' && actorSide === data.lastSide) {
+    throw new Error("negotiation_not_your_turn");
+  }
+
+
   const nowDate = Timestamp.now().toDate();
 
-  // 📍 Logic การอัปเดต
   const updatePayload: Partial<Negotiation> = {
     updatedAt: nowDate,
   };
@@ -182,25 +195,49 @@ export async function updateNegotiationStatus(opts: {
   if (action === 'negotiating') {
     // อัปเดตราคาใหม่และระบุว่าใครต่อรองล่าสุด
     if (newPrice === undefined) {
-      // Route ควรจะดักแล้ว แต่ใส่ไว้เพื่อความปลอดภัย
       throw new Error("newPrice_required_for_negotiating");
     }
+    
+    let finalAmountKg = data.amountKg; // ฐานข้อมูลเริ่มต้นใช้ amountKg เดิม
+
+    // [LOGIC]: การจัดการ amountKg ขึ้นอยู่กับบทบาท
+    if (actorSide === 'farmer') {
+        // เกษตรกรต่อรองได้แค่ราคาเท่านั้น น้ำหนักต้องคงเดิม
+        if (newAmountKg !== undefined && newAmountKg !== data.amountKg) {
+            // หากเกษตรกรพยายามส่งน้ำหนักใหม่ที่แตกต่างจากเดิม ให้ reject
+            throw new Error("farmer_cannot_change_amount");
+        }
+        // ใช้ amountKg เดิม
+        finalAmountKg = data.amountKg; 
+
+    } else if (actorSide === 'factory') {
+        // โรงงานสามารถต่อรองได้ทั้งราคาและปริมาณ
+        if (newAmountKg === undefined) {
+            // หากโรงงานต่อรองราคา แต่ไม่ได้ส่งปริมาณมา ให้ใช้ปริมาณเดิม ( lenient )
+            finalAmountKg = data.amountKg; 
+        } else {
+            // ใช้ปริมาณใหม่ที่โรงงานเสนอ
+            finalAmountKg = newAmountKg;
+        }
+    }
+    
+    // บันทึก payload
     updatePayload.offeredPrice = newPrice;
+    updatePayload.amountKg = finalAmountKg; // ✅ ใช้ค่า finalAmountKg ที่คำนวณแล้ว
     updatePayload.lastSide = actorSide;
-    // status ยังคงเป็น 'open' 
+    
   } else {
-    // 'accepted', 'rejected', หรือ 'cancelled' คือสถานะสุดท้าย
+    // 'accepted', 'rejected', หรือ 'cancelled' 
     updatePayload.status = action as NegotiationStatus;
     if (action === 'accepted') {
-      // ถ้า accepted ให้ใช้ offeredPrice เป็น finalPrice 
       updatePayload.finalPrice = data.offeredPrice ?? null;
+      // Note: amountKg ใน order จะถูกอัปเดตตาม negotiation.amountKg
     }
   }
 
-
   const batch = db.batch();
   const negoRef = db.collection(NEGOS_COL).doc(negotiationId);
-  batch.set(negoRef, updatePayload, { merge: true }); // อัปเดตเฉพาะ field ที่เปลี่ยนไป
+  batch.set(negoRef, updatePayload, { merge: true }); 
 
   // ถ้า accept → ปิดดีล + เซ็ต finalPrice + อัปเดต order
   if (action === "accepted") {
@@ -210,15 +247,16 @@ export async function updateNegotiationStatus(opts: {
       {
         status: "matched",
         matchedAt: nowDate,
-        // ใช้ offeredPrice รอบสุดท้ายเป็น finalPrice ของดีล
         finalPrice: data.offeredPrice ?? null,
+        // ✅ [NEW] อัปเดต amountKg ใน Order ด้วยปริมาณที่ตกลงกัน
+        amountKg: data.amountKg, 
       } as any,
       { merge: true }
     );
   }
 
   await batch.commit();
-  // ประกอบร่างข้อมูลที่อัปเดตแล้วเพื่อคืนค่ากลับไป
+  
   const updated: Negotiation = {
     ...data,
     ...updatePayload,
@@ -251,13 +289,20 @@ export async function listNegotiationsOfOrder(
 // ดึง negotiation ตาม farmer
 export async function listNegotiationsByFarmer(
   farmerId: string,
-  limit = 50
+  limit = 50,
+  status?: NegotiationStatus
 ): Promise<(Negotiation & { id: string })[]> {
-  let q = db
+  
+  let q: admin.firestore.Query = db
     .collection(NEGOS_COL)
-    .where("farmerId", "==", farmerId)
-    .orderBy("updatedAt", "desc")
-    .limit(limit);
+    .where("farmerId", "==", farmerId);
+    
+  // ✅ [NEW LOGIC] กรองตาม status
+  if (status) {
+      q = q.where("status", "==", status);
+  }
+  
+  q = q.orderBy("updatedAt", "desc").limit(limit);
 
   const snap = await q.get();
   return snap.docs.map(d => ({ id: d.id, ...(d.data() as Negotiation) }));
@@ -266,13 +311,20 @@ export async function listNegotiationsByFarmer(
 // ดึง negotiation ตาม buyer (โรงงาน)
 export async function listNegotiationsByBuyer(
   buyerId: string,
-  limit = 50
+  limit = 50,
+  status?: NegotiationStatus
 ): Promise<(Negotiation & { id: string })[]> {
-  let q = db
+  
+  let q: admin.firestore.Query = db
     .collection(NEGOS_COL)
-    .where("factoryId", "==", buyerId)
-    .orderBy("updatedAt", "desc")
-    .limit(limit);
+    .where("factoryId", "==", buyerId);
+    
+  // ✅ [NEW LOGIC] กรองตาม status
+  if (status) {
+      q = q.where("status", "==", status);
+  }
+
+  q = q.orderBy("updatedAt", "desc").limit(limit);
 
   const snap = await q.get();
   return snap.docs.map(d => ({ id: d.id, ...(d.data() as Negotiation) }));

@@ -1,11 +1,12 @@
 import { Router, Request, Response } from "express";
 import { db } from "../config/firestore";
+// ✅ แก้ไข: เพิ่มการ Import FirebaseFirestore สำหรับ Type Annotation
+import * as FirebaseFirestore from "firebase-admin/firestore"; 
 import { evaluatePrice, GradeType } from "../services/priceService";
 import { Order } from "../models/Order";
 import { findMatchesForOrder } from "../services/orderService";
 import {
   createOrUpdateNegotiation,
-  // 📍 [สำคัญ] ฟังก์ชันนี้ต้องถูกแก้ไขใน negotiationService.ts ในขั้นตอนถัดไป
   updateNegotiationStatus,
   listNegotiationsOfOrder,
   listNegotiationsByFarmer,
@@ -268,7 +269,7 @@ router.get("/orders/:id/negotiations", async (req: Request, res: Response) => {
 
 
 // -----------------------------------------------------------
-// ✅ [เพิ่ม ROUTE ใหม่สำหรับดึงรายละเอียดการเจรจาเดียว]
+// ✅ [ROUTE สำหรับดึงรายละเอียดการเจรจาเดียว]
 // -----------------------------------------------------------
 /** GET /negotiations/:id - ดึงรายละเอียดการเจรจาเดียว */
 router.get("/negotiations/:id", async (req: Request, res: Response) => {
@@ -299,14 +300,14 @@ router.get("/negotiations/:id", async (req: Request, res: Response) => {
 });
 
 // -----------------------------------------------------------
-// ✅ [แก้ไข ROUTE อัปเดตสถานะ/ราคา (เปลี่ยนจาก PATCH เป็น PUT และรองรับ Counter)]
+// ✅ [MODIFIED ROUTE อัปเดตสถานะ/ราคา (รองรับ amountKg และแก้ไข Validation)]
 // -----------------------------------------------------------
 /** PUT /negotiations/:id - อัปเดตสถานะหรือราคา (Accept/Reject/Counter) */
 router.put("/negotiations/:id", async (req: Request, res: Response) => {
   try {
     const negotiationId = req.params.id;
-    // 📍 แก้ไข: รับ 'action' และ 'newPrice'
-    const { actorId, action, newPrice } = req.body ?? {};
+    // 📍 MODIFIED: รับ 'newAmountKg'
+    const { actorId, action, newPrice, newAmountKg } = req.body ?? {};
 
     if (!actorId || !action) {
       return res.status(400).json({ error: "missing_fields" });
@@ -316,18 +317,28 @@ router.put("/negotiations/:id", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "invalid_action" });
     }
 
-    // ตรวจสอบว่าถ้า action เป็น 'negotiating' ต้องมี newPrice และเป็นตัวเลข
     const priceValue = Number(newPrice);
-    if (action === 'negotiating' && (newPrice === undefined || isNaN(priceValue) || priceValue <= 0)) {
-      return res.status(400).json({ error: "newPrice_invalid_or_missing_for_negotiating" });
+    const amountValue = Number(newAmountKg); 
+
+    if (action === 'negotiating') {
+        // ตรวจสอบ newPrice
+        if (newPrice === undefined || isNaN(priceValue) || priceValue <= 0) {
+            return res.status(400).json({ error: "newPrice_invalid_or_missing_for_negotiating" });
+        }
+        
+        // ⚠️ ลบการตรวจสอบ amountKg ที่เข้มงวดออก เพื่อให้ Service Layer จัดการตามบทบาท
+        if (newAmountKg !== undefined && (isNaN(amountValue) || amountValue <= 0)) {
+             return res.status(400).json({ error: "amountKg_invalid_format" });
+        }
     }
 
-    // 📍 อัปเดต: เรียกใช้ updateNegotiationStatus ด้วย action และ newPrice
+    // 📍 อัปเดต: เรียกใช้ updateNegotiationStatus ด้วย action, newPrice, และ newAmountKg
     const updated = await updateNegotiationStatus({
       negotiationId,
       actorId: String(actorId),
       action: action, // ส่ง action ใหม่ไป
-      newPrice: priceValue > 0 ? priceValue : undefined, // ส่งราคาใหม่ไปถ้ามีการต่อรอง
+      newPrice: priceValue > 0 ? priceValue : undefined,
+      newAmountKg: newAmountKg !== undefined ? amountValue : undefined, // ส่ง amountKg ไป
     });
 
     return res.json(updated);
@@ -336,6 +347,7 @@ router.put("/negotiations/:id", async (req: Request, res: Response) => {
     if (e?.message === "negotiation_not_found") {
       return res.status(404).json({ error: "negotiation_not_found" });
     }
+    // ส่ง Error ที่มาจาก Service Layer (เช่น farmer_cannot_change_amount)
     return res.status(400).json({ error: e.message ?? "internal_error" });
   }
 });
@@ -346,7 +358,8 @@ router.put("/negotiations/:id", async (req: Request, res: Response) => {
  */
 router.get("/negotiations", async (req: Request, res: Response) => {
   try {
-    const { farmerId, buyerId } = req.query as any;
+    // ✅ FIX 1: ดึงค่า status จาก query
+    const { farmerId, buyerId, status } = req.query as any; 
     let limit = Number(req.query.limit ?? 20);
     if (Number.isNaN(limit) || limit < 1) limit = 20;
     if (limit > 100) limit = 100;
@@ -360,9 +373,11 @@ router.get("/negotiations", async (req: Request, res: Response) => {
 
     let rawItems;
     if (farmerId) {
-      rawItems = await listNegotiationsByFarmer(String(farmerId), limit);
+      // ✅ FIX 2: ส่ง status เข้าไปใน listNegotiationsByFarmer
+      rawItems = await listNegotiationsByFarmer(String(farmerId), limit, status as any);
     } else {
-      rawItems = await listNegotiationsByBuyer(String(buyerId), limit);
+      // ✅ FIX 3: ส่ง status เข้าไปใน listNegotiationsByBuyer
+      rawItems = await listNegotiationsByBuyer(String(buyerId), limit, status as any);
     }
 
     // ✅ [FIX] แปลง Timestamp เป็น ISO String
