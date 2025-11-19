@@ -1,50 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, 
   TextInput, ScrollView, Platform, Alert,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
-
-// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
-import { API_BASE_URL } from './apiConfig'; // <-- แก้ไข: ใช้ค่าจากไฟล์กลางที่คำนวณ Host/IP ที่ถูกต้อง
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from './apiConfig'; 
 
 export default function CreateBidScreen({ navigation }) {
-  // --- State สำหรับฟอร์ม (เหมือนเดิม) ---
+  // --- State ---
   const [grade, setGrade] = useState(''); 
   const [weight, setWeight] = useState('');
   const [price, setPrice] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState(''); 
   const [details, setDetails] = useState('');
-
-  // --- [ 📍 เพิ่ม State ที่ Backend ต้องการ ] ---
   const [province, setProvince] = useState('');
   const [amphoe, setAmphoe] = useState('');   
   
-  // (สำคัญ! ปกติ ID นี้ต้องมาจาก State ของ User ที่ Login อยู่)
-  // (ตอนนี้ผมใส่ค่าปลอมไปก่อน คุณต้องไปดึง ID จริงมาใส่แทน)
-  const [ownerId, setOwnerId] = useState('TEMP_BUYER_ID_67890'); 
+  const [ownerId, setOwnerId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const [loading, setLoading] = useState(false); // (สำหรับปุ่ม)
+  // --- Load User ID ---
+  useEffect(() => {
+    const loadUserId = async () => {
+        const storedId = await AsyncStorage.getItem('userId');
+        if (storedId) {
+            setOwnerId(storedId);
+        } else {
+            Alert.alert("ข้อผิดพลาด", "ไม่พบ ID ผู้ใช้ กรุณาล็อกอินใหม่");
+            navigation.goBack();
+        }
+        setInitialLoading(false);
+    };
+    loadUserId();
+  }, [navigation]);
 
-  // --- [ 📍 4. "ผ่าตัด" handleSubmit ] ---
-  const handleSubmit = async () => { // (A) เปลี่ยนเป็น async
+
+  // --- Submit Logic ---
+  const handleSubmit = async () => { 
+    if (!ownerId || initialLoading) {
+      Alert.alert("ข้อผิดพลาด", "กำลังโหลดข้อมูลผู้ใช้ กรุณารอสักครู่");
+      return;
+    }
     
-    // (B) เช็คข้อมูลที่เพิ่มเข้ามาด้วย
     if (!grade || !weight || !price || !deliveryDate || !province || !amphoe) {
-      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญ (เกรด, น้ำหนัก, ราคา, จังหวัด, อำเภอ, วันที่ต้องการ) ให้ครบถ้วน');
+      Alert.alert('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน');
       return;
     }
 
-    if (loading) return; // กันกดย้ำๆ
+    if (loading) return; 
     setLoading(true);
     
-    // (C) สร้าง "Payload"
     const payload = {
-      // [ 📍 5. เปลี่ยน type เป็น "buy" ]
-      type: 'buy', // <--- บอก Backend ว่านี่คือ "ประกาศรับซื้อ"
-      
-      ownerId: ownerId, 
+      type: 'buy', 
+      ownerId: ownerId,
       province: province,
       amphoe: amphoe,
       grade: grade,
@@ -55,13 +66,9 @@ export default function CreateBidScreen({ navigation }) {
     };
     
     try {
-      // (D) ยิง API (Fetch)
-      // (*** แก้ไข Endpoint: เพิ่ม /orderApi/ ***)
       const response = await fetch(`${API_BASE_URL}/orderApi/orders`, { 
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
@@ -71,10 +78,9 @@ export default function CreateBidScreen({ navigation }) {
         throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
       }
 
-      // (E) ถ้าสำเร็จ (เปลี่ยนข้อความ Alert)
       Alert.alert(
-          'ประกาศรับซื้อสำเร็จ', 
-          'ประกาศของคุณจะถูกส่งไปยังเกษตรกรในระบบแล้ว',
+          'สำเร็จ', 
+          'ประกาศรับซื้อของคุณถูกสร้างเรียบร้อยแล้ว',
           [{ text: 'ตกลง', onPress: () => navigation.goBack() }] 
       );
       
@@ -82,91 +88,74 @@ export default function CreateBidScreen({ navigation }) {
       console.error('Error submitting bid:', error);
       Alert.alert('เกิดข้อผิดพลาด', error.message);
     } finally {
-      setLoading(false); // (คืนค่าปุ่ม)
+      setLoading(false); 
     }
   };
+
+  if (initialLoading) {
+    return (
+        <View style={styles.loadingFullContainer}>
+            <ActivityIndicator size="large" color="#1E9E4F" />
+            <Text style={styles.loadingText}>กำลังเตรียมข้อมูล...</Text>
+        </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
         
-        {/* --- [ 1. กลับไป 5 เกรด (AA, A, B, C, CC) ] --- */}
+        {/* [📍 แก้ไขส่วนนี้] เปลี่ยน UI ปุ่มเลือกเกรดให้เหมือนหน้าขายเป๊ะๆ */}
         <Text style={styles.label}>เกรดลำไยที่ต้องการรับซื้อ</Text>
         <View style={styles.gradeContainer}>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'AA' && styles.gradeButtonActive]}
-            onPress={() => setGrade('AA')}
-          >
-            <Text style={[styles.gradeCircle, styles.gradeAA]}>AA</Text>
-            <Text style={styles.gradeText}>เกรด AA</Text>
-            <Text style={styles.gradeSubText}>พรีเมี่ยม</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'A' && styles.gradeButtonActive]}
-            onPress={() => setGrade('A')}
-          >
-            <Text style={[styles.gradeCircle, styles.gradeA]}>A</Text>
-            <Text style={styles.gradeText}>เกรด A</Text>
-            <Text style={styles.gradeSubText}>คุณภาพดี</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'B' && styles.gradeButtonActive]}
-            onPress={() => setGrade('B')}
-          >
-            <Text style={[styles.gradeCircle, styles.gradeB]}>B</Text>
-            <Text style={styles.gradeText}>เกรด B</Text>
-            <Text style={styles.gradeSubText}>มาตรฐานทั่วไป</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'C' && styles.gradeButtonActive]}
-            onPress={() => setGrade('C')}
-          >
-            <Text style={[styles.gradeCircle, styles.gradeC]}>C</Text>
-            <Text style={styles.gradeText}>เกรด C</Text>
-            <Text style={styles.gradeSubText}>คุณภาพรอง</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.gradeButton, grade === 'CC' && styles.gradeButtonActive]}
-            onPress={() => setGrade('CC')}
-          >
-            <Text style={[styles.gradeCircle, styles.gradeCC]}>CC</Text>
-            <Text style={styles.gradeText}>เกรด CC</Text>
-            <Text style={styles.gradeSubText}>ลำไยร่วง/คละ</Text>
-          </TouchableOpacity>
+          {['AA', 'A', 'B', 'C', 'CC'].map((g) => (
+            <TouchableOpacity 
+              key={g} 
+              style={[
+                styles.gradeButton, 
+                grade === g && styles.gradeButtonActive,
+                styles[`grade${g}`] // เรียกใช้ style สีตามชื่อเกรด
+              ]}
+              onPress={() => setGrade(g)}
+            >
+              <Text style={styles.gradeButtonText}>{g}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
         
-        {/* === ฟิลด์ตัวเลข === */}
+        {/* ส่วน input อื่นๆ เหมือนเดิม */}
         <Text style={styles.label}>น้ำหนักที่ต้องการรับซื้อ (กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="จำนวนเป็นกิโลกรัม" keyboardType="numeric" onChangeText={setWeight} value={weight} />
           <Text style={styles.inputSuffix}>กก.</Text>
         </View>
+
         <Text style={styles.label}>ราคาที่เสนอซื้อ (บาท/กก.)</Text>
         <View style={styles.inputContainer}>
           <TextInput style={styles.input} placeholder="ราคาต่อกิโลกรัม" keyboardType="numeric" onChangeText={setPrice} value={price} />
-          <Text style={styles.inputSuffix}>บาท/กก.</Text>
+          <Text style={styles.inputSuffix}>บาท</Text>
         </View>
 
-        {/* --- [ 📍 6. เพิ่มช่องกรอก จังหวัด/อำเภอ ] --- */}
         <Text style={styles.label}>จังหวัด</Text>
         <View style={styles.inputContainer}>
-          <TextInput style={styles.input} placeholder="เช่น เชียงใหม่, ลำพูน" onChangeText={setProvince} value={province} />
-        </View>
-        <Text style={styles.label}>อำเภอ</Text>
-        <View style={styles.inputContainer}>
-          <TextInput style={styles.input} placeholder="เช่น เมือง, สารภี" onChangeText={setAmphoe} value={amphoe} />
+          <TextInput style={styles.input} placeholder="เช่น เชียงใหม่" onChangeText={setProvince} value={province} />
         </View>
 
-        {/* === ฟิลด์วันที่และรายละเอียด === */}
-        <Text style={styles.label}>วันที่ต้องการให้มาส่ง/วันที่ต้องการรับของ</Text>
+        <Text style={styles.label}>อำเภอ</Text>
         <View style={styles.inputContainer}>
-          <TextInput style={styles.input} placeholder="เช่น 15/12/2568 หรือ ภายในสัปดาห์นี้" onChangeText={setDeliveryDate} value={deliveryDate} />
+          <TextInput style={styles.input} placeholder="เช่น เมือง" onChangeText={setAmphoe} value={amphoe} />
         </View>
+
+        <Text style={styles.label}>วันที่ต้องการรับของ</Text>
+        <View style={styles.inputContainer}>
+          <TextInput style={styles.input} placeholder="เช่น 15/12/2568" onChangeText={setDeliveryDate} value={deliveryDate} />
+        </View>
+
         <Text style={styles.label}>รายละเอียดเพิ่มเติม</Text>
         <View style={styles.inputContainer}>
           <TextInput
             style={[styles.input, styles.inputMultiline]}
-            placeholder="ระบุข้อมูลสำคัญอื่นๆ ที่เกษตรกรควรทราบ (เช่น รับเฉพาะสวนที่...)"
+            placeholder="ระบุข้อมูลสำคัญอื่นๆ..."
             onChangeText={setDetails}
             value={details}
             multiline={true}
@@ -175,12 +164,11 @@ export default function CreateBidScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* --- [ 📍 7. อัปเกรดปุ่ม Submit ] --- */}
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (loading || initialLoading) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || initialLoading}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -193,53 +181,41 @@ export default function CreateBidScreen({ navigation }) {
   );
 }
 
-// --- [ StyleSheet (กลับไป 5 เกรด) ] ---
+// --- Styles (ก๊อปปี้ style ของเกรดมาจากหน้าขาย) ---
 const styles = StyleSheet.create({
+  loadingFullContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FAFAFA' },
+  loadingText: { marginTop: 10, fontSize: 16, color: '#555' },
+  
   safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   container: { flex: 1, padding: 20 },
   label: { fontSize: 16, fontWeight: 'bold', color: '#333', marginTop: 15, marginBottom: 10 },
-  gradeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap', 
+  
+  // [📍 Styles ใหม่สำหรับปุ่มเลือกเกรด (แบบแถวเดียว)]
+  gradeContainer: { 
+    flexDirection: 'row', 
     justifyContent: 'space-between', 
+    marginBottom: 10 
   },
   gradeButton: {
-    width: '30%', 
+    flex: 1, 
+    height: 60,
+    marginHorizontal: 4,
+    borderRadius: 10,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    marginHorizontal: '1%', 
-    marginBottom: 10, 
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: '#E0E0E0',
   },
-  gradeButtonActive: { borderColor: '#1E9E4F', backgroundColor: '#E8F5E9', elevation: 4 },
-  gradeCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    textAlign: 'center',
-    textAlignVertical: 'center', 
-    lineHeight: Platform.OS === 'ios' ? 40 : undefined, 
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 10,
+  gradeButtonActive: { 
+    borderWidth: 3, 
+    borderColor: '#1E9E4F' 
   },
-  gradeAA: { backgroundColor: '#D32F2F' }, 
-  gradeA:  { backgroundColor: '#1E9E4F' }, 
-  gradeB:  { backgroundColor: '#0D6EfD' }, 
-  gradeC:  { backgroundColor: '#FFA000' }, 
-  gradeCC: { backgroundColor: '#616161' }, 
-  
-  gradeText: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  gradeSubText: { fontSize: 12, color: '#888' },
+  gradeAA: { backgroundColor: '#FBE8E8' }, 
+  gradeA:  { backgroundColor: '#E8F5E9' }, 
+  gradeB:  { backgroundColor: '#E0F7FF' }, 
+  gradeC:  { backgroundColor: '#FFFDE7' }, 
+  gradeCC: { backgroundColor: '#F0F0F0' },
+  gradeButtonText: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+
   inputContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -255,9 +231,8 @@ const styles = StyleSheet.create({
   footer: { backgroundColor: '#FFFFFF', padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderColor: '#E0E0E0' },
   submitButton: { backgroundColor: '#1E9E4F', paddingVertical: 15, borderRadius: 8, alignItems: 'center' },
   
-  // --- [ 📍 8. เพิ่ม Style สำหรับปุ่มตอน Loading ] ---
   submitButtonDisabled: {
-    backgroundColor: '#A5D6A7', // (สีเขียวจางๆ)
+    backgroundColor: '#A5D6A7',
   },
   submitButtonText: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
 });

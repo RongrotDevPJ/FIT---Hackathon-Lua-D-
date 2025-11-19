@@ -1,11 +1,16 @@
-// firebaseConfig.js
+// firebaseConfig.js (เวอร์ชัน Compat Mode)
 
-// --- [1. Import "เครื่องมือ" ที่ถูกต้อง] ---
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+// 1. Import 'compat' (v8) mode for the main app
+import firebase from 'firebase/compat/app';
 
-// --- [2. "กุญแจ" (Config) ที่เพื่อนคุณให้มา (ถูกต้อง 100%)] ---
+// 2. Import the 'compat' services you need (auth and firestore)
+// This "bolts on" .auth() and .firestore() to the firebase object
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+// หากคุณใช้ service อื่นเช่น Storage ในไฟล์อื่น ให้เพิ่ม:
+// import 'firebase/compat/storage';
+
+// 3. Add the config from your friend (lua-database)
 const firebaseConfig = {
   apiKey: "AIzaSyDVyo3uYzD8AjL-1fhK-LFxvTlJY_Xqrso",
   authDomain: "lua-database.firebaseapp.com",
@@ -16,9 +21,10 @@ const firebaseConfig = {
   measurementId: "G-2SL58MS5XB"
 };
 
-// --- [3. "ต่อสายไฟ"] ---
-const app = initializeApp(firebaseConfig);
+// 4. Initialize the app (if not already initialized)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 
-// --- [4. "ส่งออก" เครื่องมือที่เราจะใช้ในหน้าอื่น] ---
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// 5. Export the 'firebase' object (which your v8 code expects)
+export { firebase };

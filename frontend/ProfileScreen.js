@@ -1,248 +1,224 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react'; // <--- 1. แก้ 'in' เป็น 'from'
 import { 
-  StyleSheet, Text, View, ScrollView, 
-  TouchableOpacity, Alert, ActivityIndicator 
+  StyleSheet, Text, View, TouchableOpacity, 
+  Alert, ActivityIndicator, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons'; 
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
-
-// [ 📍 ตั้งค่า API URL (สำหรับ Web) ]
-import { API_BASE_URL } from './apiConfig';
+import { useFocusEffect } from '@react-navigation/native';
+import { API_BASE_URL } from './apiConfig'; 
 
 export default function ProfileScreen({ navigation }) {
-  const [userProfile, setUserProfile] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null); 
-  
-  // 📍 ลบ State ที่เกี่ยวข้องกับการแสดงรายการออก
 
-  const fetchUserProfile = async (userId) => { 
-    if (!userId) { 
-        setLoading(false);
-        return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/usersApi/${userId}`);
-      const result = await response.json();
+  // ใช้ useFocusEffect เพื่อให้ดึงข้อมูลใหม่ทุกครั้งที่กลับมาหน้านี้
+  useFocusEffect(
+    useCallback(() => {
+      const fetchUserData = async () => {
+        setLoading(true);
+        const userId = await AsyncStorage.getItem('userId');
+        
+        if (!userId) {
+          Alert.alert("ข้อผิดพลาด", "ไม่พบข้อมูลผู้ใช้ กรุณาล็อกอินใหม่");
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          return;
+        }
 
-      if (!response.ok) {
-        throw new Error(result.error || `ไม่สามารถดึงข้อมูลโปรไฟล์ได้: ${response.status}`);
-      }
+        try {
+          // [อิงจาก usersRoutes.ts] GET /users/:id
+          const response = await fetch(`${API_BASE_URL}/usersApi/${userId}`);
+          const userData = await response.json();
 
-      setUserProfile(result);
-      
-    } catch (e) {
-      console.error("Fetch Profile Error:", e);
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+          if (response.ok) {
+            setUser(userData);
+          } else {
+            throw new Error(userData.error || 'ไม่สามารถดึงข้อมูลผู้ใช้ได้');
+          }
+        } catch (error) {
+          console.error("Fetch User Error:", error);
+          Alert.alert("เกิดข้อผิดพลาด", error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
 
-  useEffect(() => {
-    const loadUserId = async () => {
-        const storedId = await AsyncStorage.getItem('userId');
-        setCurrentUserId(storedId); 
-        fetchUserProfile(storedId);
-    };
-    loadUserId();
-  }, []);
+      fetchUserData();
+    }, [])
+  );
 
-  // --- (Render Functions) ---
-
-  const renderUserInfo = () => {
-    if (loading) {
-      return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1E9E4F" />
-          <Text style={styles.loadingText}>กำลังโหลดข้อมูล...</Text>
-        </View>
-      );
-    }
-    
-    if (error) {
-      return (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>ข้อผิดพลาด: {error}</Text>
-          <TouchableOpacity onPress={() => fetchUserProfile(currentUserId)} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>ลองอีกครั้ง</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (!userProfile) {
-        return <Text style={styles.loadingText}>ไม่พบข้อมูลผู้ใช้ (กรุณาล็อกอิน)</Text>;
-    }
-
-    return (
-      <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {userProfile.name ? userProfile.name[0] : 'U'}
-          </Text>
-        </View>
-        <Text style={styles.nameText}>{userProfile.name || 'ชื่อผู้ใช้'}</Text>
-        <Text style={styles.roleText}>{userProfile.role === 'farmer' ? 'เกษตรกร (ผู้ขาย)' : 'ผู้ซื้อ/โรงงาน'}</Text>
-        <View style={styles.infoRow}>
-          <Ionicons name="call-outline" size={18} color="#555" />
-          <Text style={styles.infoText}>{userProfile.phone || 'ไม่ระบุเบอร์โทร'}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Ionicons name="location-outline" size={18} color="#555" />
-          <Text style={styles.infoText}>
-            {userProfile.amphoe && userProfile.province 
-                ? `${userProfile.amphoe}, ${userProfile.province}` 
-                : 'ไม่ระบุที่อยู่'
-            }
-          </Text>
-        </View>
-      </View>
-    );
-  };
-  
-  // 📍 renderOrders ถูกลบออก
-
-  // --- (Logout Function) ---
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       "ออกจากระบบ",
-      "คุณต้องการออกจากระบบหรือไม่?",
+      "คุณต้องการออกจากระบบใช่หรือไม่?",
       [
         { text: "ยกเลิก", style: "cancel" },
         { 
-          text: "ยืนยัน", 
+          text: "ตกลง", 
+          style: "destructive",
           onPress: async () => {
-            await AsyncStorage.clear();
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-          } 
+            // เคลียร์ข้อมูลทั้งหมดใน AsyncStorage
+            await AsyncStorage.removeItem('userToken');
+            await AsyncStorage.removeItem('userId');
+            await AsyncStorage.removeItem('userRole');
+            
+            // กลับไปหน้า Login
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
         }
       ]
     );
   };
 
-  // --- (Main Render) ---
+  // 2. แก้ไขฟังก์ชันให้รับ isLast เพื่อเช็คว่าใช่แถวสุดท้ายหรือไม่
+  const renderInfoRow = (icon, label, value, isLast = false) => (
+    <View style={[styles.infoRow, isLast && styles.infoRowLast]}>
+      <Ionicons name={icon} size={24} color="#555" style={styles.icon} />
+      <View style={styles.infoTextContainer}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value || 'N/A'}</Text>
+      </View>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#1E9E4F" />
+        <Text style={styles.loadingText}>กำลังโหลดข้อมูล...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>ข้อมูลส่วนตัว</Text>
+        <View style={styles.profileHeader}>
+          <Ionicons name="person-circle-outline" size={80} color="#1E9E4F" />
+          <Text style={styles.nameText}>{user?.name}</Text>
+          <Text style={styles.roleText}>
+            {user?.role === 'farmer' ? 'เกษตรกร/ผู้ขาย' : 'ผู้ซื้อ'}
+          </Text>
+        </View>
 
-        {renderUserInfo()}
+        <View style={styles.infoCard}>
+          {/* 3. ส่ง isLast=true ให้แถวสุดท้าย */}
+          {renderInfoRow("call-outline", "เบอร์โทรศัพท์", user?.phone)}
+          {renderInfoRow("location-outline", "จังหวัด", user?.province)}
+          {renderInfoRow("map-outline", "อำเภอ", user?.amphoe, true)} 
+        </View>
 
-        {/* 📍 ส่วนแสดงรายการถูกลบออก */}
-        
-        <TouchableOpacity style={styles.editButton}>
-            <Ionicons name="create-outline" size={20} color="#1E9E4F" />
-            <Text style={styles.editButtonText}>แก้ไขข้อมูลส่วนตัว</Text>
+        <TouchableOpacity 
+          style={styles.logoutButton} 
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={22} color="#D32F2F" />
+          <Text style={styles.logoutButtonText}>ออกจากระบบ</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={24} color="#D32F2F" />
-          <Text style={styles.logoutText}>ออกจากระบบ</Text>
-        </TouchableOpacity>
-        
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
-  container: { padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 20 },
-  
-  profileCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    padding: 25,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 4,
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F4F4F4',
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#1E9E4F',
+  loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
   },
-  avatarText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#555',
+  },
+  container: {
+    flexGrow: 1,
+    padding: 20,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   nameText: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 5,
+    marginTop: 10,
   },
   roleText: {
     fontSize: 16,
     color: '#1E9E4F',
+    marginTop: 4,
     fontWeight: '600',
-    marginBottom: 15,
+  },
+  infoCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 10,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 5,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  infoText: {
+  // 4. สร้าง Style สำหรับแถวสุดท้าย (ไม่มีเส้นขอบล่าง)
+  infoRowLast: {
+    borderBottomWidth: 0,
+  },
+  icon: {
+    marginHorizontal: 15,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#888',
+  },
+  infoValue: {
     fontSize: 16,
-    color: '#555',
-    marginLeft: 10,
-  },
-  
-  // Loading & Error styles
-  loadingContainer: { alignItems: 'center', justifyContent: 'center', padding: 20 },
-  loadingText: { fontSize: 16, color: '#888', marginTop: 10 },
-  errorText: { fontSize: 16, color: '#D32F2F', textAlign: 'center' },
-  retryButton: { backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, marginTop: 10 },
-  retryButtonText: { color: '#1E9E4F', fontWeight: 'bold' },
-  
-  // Action Buttons
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 10,
-  },
-  editButtonText: {
-    marginLeft: 10,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E9E4F',
+    color: '#333',
+    fontWeight: '500',
+    marginTop: 2,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFEBEE', 
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 40,
-    marginTop: 10,
+    backgroundColor: '#FFF1F1',
+    borderRadius: 10,
+    paddingVertical: 15,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#FDCACA',
   },
-  logoutText: {
-    marginLeft: 10,
-    fontSize: 18,
+  logoutButtonText: {
+    fontSize: 16,
+    color: '#D32F2F',
     fontWeight: 'bold',
-    color: '#D32F2F', 
+    marginLeft: 10,
   },
 });
