@@ -1,3 +1,5 @@
+// File: frontend/OffersScreen.js
+
 import React, { useState, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, FlatList, 
@@ -64,52 +66,63 @@ const OfferItem = ({ item, navigation }) => {
   );
 }; 
 
+// --- Helper function for sorting and date parsing (✅ NEW: ส่วนที่เพิ่มเข้ามาและต้องอยู่ภายนอก OffersScreen) ---
+const getSortableDate = (item) => {
+    if (!item || !item.updatedAt) return new Date(0); 
+    
+    // Handle Firebase Timestamp format { _seconds: N }
+    if (item.updatedAt._seconds) {
+        return new Date(item.updatedAt._seconds * 1000);
+    }
+    
+    // Handle standard Date string/object
+    return new Date(item.updatedAt);
+};
+
 export default function OffersScreen({ navigation }) {
+  // ✅ [NEW STATE]: เก็บรายการทั้งหมดที่ดึงมาจาก API (ไม่ถูกกรอง)
+  const [allOffers, setAllOffers] = useState([]); 
   const [filteredOffers, setFilteredOffers] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
   
-  // ✅ [NEW]: State สำหรับเก็บ Count แยกตามสถานะ
   const [counts, setCounts] = useState({ active: 0, accepted: 0, failed: 0 });
+  // [📍 ใช้ filter เพื่อบอกว่าตอนนี้กำลังแสดงแท็บไหนอยู่]
+  const [filter, setFilter] = useState('active'); 
   
-  // [📍 เพิ่ม State สำหรับ Filter]
-  const [filter, setFilter] = useState('active'); // ค่าเริ่มต้น: กำลังดีล
-  
-  // ✅ [NEW]: ฟังก์ชันสำหรับดึง Count แยก
-  const fetchCounts = async (userId, role) => {
-    const statuses = ['open', 'negotiating', 'accepted', 'rejected', 'cancelled']; 
-    const baseFilter = role === 'farmer' ? `farmerId=${userId}` : `buyerId=${userId}`;
-    
-    // สร้าง Array ของ Promises สำหรับการดึง Count แต่ละสถานะพร้อมกัน
-    const countPromises = statuses.map(status => {
-        const endpoint = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&status=${status}&limit=1000`;
-        
-        // ใช้วิธี Promise Chain ที่เสถียร
-        return fetch(endpoint)
-            .then(res => res.json())
-            .then(result => (result.items ? result.items.length : 0))
-            .catch(() => 0); // คืนค่า 0 หากเกิดข้อผิดพลาดในการ fetch/parse
-    });
+  // ✅ [NEW FUNCTION]: ฟังก์ชันใหม่สำหรับกรองและนับจำนวนจากชุดข้อมูลทั้งหมด
+  const applyFiltersAndCounts = (offers, currentFilter) => {
+      let activeCount = 0;
+      let acceptedCount = 0;
+      let failedCount = 0;
+      let finalFilteredItems = [];
+      
+      // เรียงลำดับรายการตามวันที่ล่าสุดอีกครั้ง (เพื่อความแม่นยำแม้ว่า API จะเรียงมาแล้ว)
+      offers.sort((a,b) => getSortableDate(b) - getSortableDate(a));
+      
+      offers.forEach(item => {
+          // 1. Calculate Counts (Local Filtering for Counts)
+          const status = item.status;
+          if (status === 'open' || status === 'negotiating') activeCount++;
+          if (status === 'accepted') acceptedCount++;
+          if (status === 'rejected' || status === 'cancelled') failedCount++;
 
-    // รอผลลัพธ์ทั้งหมด
-    const results = await Promise.all(countPromises);
-    
-    const newCounts = { active: 0, accepted: 0, failed: 0 };
-    
-    // นำผลลัพธ์มาคำนวณรวม
-    statuses.forEach((status, index) => {
-        const count = results[index];
-        // ✅ สถานะที่ใช้สำหรับแท็บ
-        if (status === 'open' || status === 'negotiating') newCounts.active += count;
-        if (status === 'accepted') newCounts.accepted += count;
-        if (status === 'rejected' || status === 'cancelled') newCounts.failed += count;
-    });
+          // 2. Apply selected Filter for Display (Local Filtering for Display)
+          if (currentFilter === 'active' && (status === 'open' || status === 'negotiating')) {
+              finalFilteredItems.push(item);
+          } else if (currentFilter === 'accepted' && status === 'accepted') {
+              finalFilteredItems.push(item);
+          } else if (currentFilter === 'failed' && (status === 'rejected' || status === 'cancelled')) {
+              finalFilteredItems.push(item);
+          }
+      });
 
-    setCounts(newCounts);
-  };
-  
-  // ✅ [MODIFIED]: ฟังก์ชันหลักในการดึงข้อมูลตาม Filter ที่ถูกเลือก
-  const fetchFilteredOffers = async (currentFilter) => {
+      setCounts({ active: activeCount, accepted: acceptedCount, failed: failedCount });
+      setFilteredOffers(finalFilteredItems);
+  }
+
+  // ✅ [MODIFIED FUNCTION]: ดึงข้อมูลทั้งหมดมาเพียงครั้งเดียว
+  const fetchAllOffers = async () => {
     setLoading(true);
 
     try {
@@ -124,49 +137,24 @@ export default function OffersScreen({ navigation }) {
       }
       
       const baseFilter = role === 'farmer' ? `farmerId=${userId}` : `buyerId=${userId}`;
-      let items = [];
       
-      const fetchBySingleStatus = async (status) => {
-          let url = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&status=${status}`;
-          const response = await fetch(url);
-          const result = await response.json();
-          // ✅ ต้องคืนค่าเป็น Array เสมอ 
-          return response.ok ? (result.items || []) : [];
-      };
-
-      if (currentFilter === 'active') {
-          // ดึง Open และ Negotiating แล้วรวมกัน
-          items = [
-              ...await fetchBySingleStatus('open'), 
-              ...await fetchBySingleStatus('negotiating')
-          ];
-
-      } else if (currentFilter === 'accepted') {
-          items = await fetchBySingleStatus('accepted');
-      } else if (currentFilter === 'failed') {
-           // ดึง Rejected และ Cancelled แล้วรวมกัน
-           items = [
-              ...await fetchBySingleStatus('rejected'), 
-              ...await fetchBySingleStatus('cancelled')
-          ];
-      }
+      // ดึงข้อมูลทั้งหมด (สูงสุด 200 รายการ ตามการตั้งค่าใน Backend) โดยไม่ต้องระบุ status
+      const url = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&limit=200`; 
+      const response = await fetch(url);
+      const result = await response.json();
       
-      // ✅ [FIX]: ขั้นตอน De-duplication เพื่อแก้ปัญหา Key Duplication Error
-      const uniqueItemsMap = new Map();
-      items.forEach(item => {
-          uniqueItemsMap.set(item.id, item); 
-      });
-      let uniqueItems = Array.from(uniqueItemsMap.values()); 
+      const rawItems = response.ok ? (result.items || []) : [];
       
-      // เรียงลำดับรายการตามวันที่ล่าสุด
-      uniqueItems.sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-
-      setFilteredOffers(uniqueItems);
-      await fetchCounts(userId, role); // อัปเดต Count หลังโหลดรายการเสร็จ
+      // ✅ [FIX]: ลบขั้นตอน De-duplication ออกไปแล้วเนื่องจาก API ดึงมาแบบรวมแล้วไม่ควรซ้ำซ้อนกัน
+      
+      setAllOffers(rawItems);
+      // กรองและนับจำนวนด้วยชุดข้อมูลใหม่ และ Filter ปัจจุบัน
+      applyFiltersAndCounts(rawItems, filter); 
 
     } catch (e) {
       console.error("Network Error:", e);
-      setFilteredOffers([]);
+      setAllOffers([]);
+      applyFiltersAndCounts([], filter); 
     } finally {
       setLoading(false);
     }
@@ -175,16 +163,18 @@ export default function OffersScreen({ navigation }) {
   // 4. ใช้ useFocusEffect เพื่อให้โหลดใหม่ทุกครั้งที่กลับมาหน้านี้
   useFocusEffect(
     useCallback(() => {
-      // โหลดเฉพาะข้อมูลสำหรับ Filter ที่ถูกเลือกในปัจจุบัน
-      fetchFilteredOffers(filter); 
-    }, [filter]) // ให้โหลดใหม่เมื่อ filter เปลี่ยน
+      // โหลดข้อมูลทั้งหมดเมื่อเข้าสู่หน้าจอ
+      fetchAllOffers(); 
+      // ⚠️ ไม่มี dependency [filter] เพราะการเปลี่ยน filter จะจัดการด้วย handleFilterChange
+    }, []) 
   );
   
-  // ✅ [NEW]: เมื่อกด tab ให้เปลี่ยน filter และโหลดข้อมูล
+  // ✅ [MODIFIED]: เมื่อกด tab ให้เปลี่ยน filter และกรองข้อมูลที่มีอยู่
   const handleFilterChange = (newFilter) => {
     if (newFilter === filter) return;
     setFilter(newFilter);
-    // การเรียก fetchFilteredOffers(newFilter) จะถูกเรียกผ่าน useFocusEffect
+    // กรองจากข้อมูลทั้งหมด (allOffers) ที่โหลดมาแล้ว
+    applyFiltersAndCounts(allOffers, newFilter);
   }
   
   // --- Main Render ---
@@ -210,7 +200,7 @@ export default function OffersScreen({ navigation }) {
                         styles.filterButtonText,
                         filter === tab.key && styles.filterButtonTextActive
                     ]}>
-                        {/* ✅ [FIX]: ใช้ counts state ที่ดึงมาอย่างถูกต้อง */}
+                        {/* ใช้ counts state ที่ดึงมาอย่างถูกต้อง */}
                         {tab.label} ({counts[tab.countKey] || 0}) 
                     </Text>
                 </TouchableOpacity>
@@ -233,8 +223,8 @@ export default function OffersScreen({ navigation }) {
                       : 'ไปที่ "ตลาดลำไย" เพื่อเลือกสินค้าและกดเจรจา หรือลองเลือกหมวดหมู่อื่น'
                   }
               </Text>
-              {/* เปลี่ยน fetchOffers เป็น fetchFilteredOffers เพื่อโหลด Filter ที่ถูกเลือก */}
-              <TouchableOpacity onPress={() => fetchFilteredOffers(filter)} style={styles.retryButton}>
+              {/* เปลี่ยนเป็นเรียก fetchAllOffers */}
+              <TouchableOpacity onPress={fetchAllOffers} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>โหลดใหม่</Text>
               </TouchableOpacity>
           </View>
@@ -245,8 +235,8 @@ export default function OffersScreen({ navigation }) {
               keyExtractor={item => item.id}
               contentContainerStyle={styles.listContainer}
               refreshing={loading}
-              // ✅ [MODIFIED]: onRefresh เรียก fetchFilteredOffers ด้วย filter ปัจจุบัน
-              onRefresh={() => fetchFilteredOffers(filter)} 
+              // ✅ [MODIFIED]: onRefresh เรียก fetchAllOffers
+              onRefresh={fetchAllOffers} 
           />
       )}
     </SafeAreaView>

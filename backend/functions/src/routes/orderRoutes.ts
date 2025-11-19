@@ -1,3 +1,5 @@
+// File: backend/functions/src/routes/orderRoutes.ts
+
 import { Router, Request, Response } from "express";
 import { db } from "../config/firestore";
 // ✅ แก้ไข: เพิ่มการ Import FirebaseFirestore สำหรับ Type Annotation
@@ -362,7 +364,8 @@ router.get("/negotiations", async (req: Request, res: Response) => {
     const { farmerId, buyerId, status } = req.query as any; 
     let limit = Number(req.query.limit ?? 20);
     if (Number.isNaN(limit) || limit < 1) limit = 20;
-    if (limit > 100) limit = 100;
+    // ⬇️ [FIXED]: ปรับ Hard Limit เป็น 200 ตามความต้องการของคุณ
+    if (limit > 200) limit = 200; 
 
     if (!farmerId && !buyerId) {
       return res.status(400).json({ error: "farmerId_or_buyerId_required" });
@@ -374,9 +377,11 @@ router.get("/negotiations", async (req: Request, res: Response) => {
     let rawItems;
     if (farmerId) {
       // ✅ FIX 2: ส่ง status เข้าไปใน listNegotiationsByFarmer
+      // NOTE: status ที่ส่งมาจะเป็น undefined หากเรียกแบบรวมทั้งหมด ซึ่ง listNegotiationsByFarmer จะจัดการให้
       rawItems = await listNegotiationsByFarmer(String(farmerId), limit, status as any);
     } else {
       // ✅ FIX 3: ส่ง status เข้าไปใน listNegotiationsByBuyer
+      // NOTE: status ที่ส่งมาจะเป็น undefined หากเรียกแบบรวมทั้งหมด ซึ่ง listNegotiationsByBuyer จะจัดการให้
       rawItems = await listNegotiationsByBuyer(String(buyerId), limit, status as any);
     }
 
