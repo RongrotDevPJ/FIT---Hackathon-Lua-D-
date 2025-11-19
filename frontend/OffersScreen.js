@@ -66,7 +66,7 @@ const OfferItem = ({ item, navigation }) => {
   );
 }; 
 
-// --- Helper function for sorting and date parsing (✅ NEW: ส่วนที่เพิ่มเข้ามาและต้องอยู่ภายนอก OffersScreen) ---
+// --- Helper function for sorting and date parsing ---
 const getSortableDate = (item) => {
     if (!item || !item.updatedAt) return new Date(0); 
     
@@ -87,7 +87,6 @@ export default function OffersScreen({ navigation }) {
   const [userRole, setUserRole] = useState(null);
   
   const [counts, setCounts] = useState({ active: 0, accepted: 0, failed: 0 });
-  // [📍 ใช้ filter เพื่อบอกว่าตอนนี้กำลังแสดงแท็บไหนอยู่]
   const [filter, setFilter] = useState('active'); 
   
   // ✅ [NEW FUNCTION]: ฟังก์ชันใหม่สำหรับกรองและนับจำนวนจากชุดข้อมูลทั้งหมด
@@ -97,7 +96,7 @@ export default function OffersScreen({ navigation }) {
       let failedCount = 0;
       let finalFilteredItems = [];
       
-      // เรียงลำดับรายการตามวันที่ล่าสุดอีกครั้ง (เพื่อความแม่นยำแม้ว่า API จะเรียงมาแล้ว)
+      // เรียงลำดับรายการตามวันที่ล่าสุดอีกครั้ง
       offers.sort((a,b) => getSortableDate(b) - getSortableDate(a));
       
       offers.forEach(item => {
@@ -131,6 +130,10 @@ export default function OffersScreen({ navigation }) {
       
       setUserRole(role); 
 
+      // ⬇️ [โค้ด Debug สำหรับตรวจสอบ ID]
+      console.log("DEBUG: Current User ID (AsyncStorage):", userId); 
+      console.log("DEBUG: Current Role (AsyncStorage):", role); 
+
       if (!userId || !role) {
         setLoading(false);
         return;
@@ -140,12 +143,14 @@ export default function OffersScreen({ navigation }) {
       
       // ดึงข้อมูลทั้งหมด (สูงสุด 200 รายการ ตามการตั้งค่าใน Backend) โดยไม่ต้องระบุ status
       const url = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&limit=200`; 
+      
+      // ⬇️ [โค้ด Debug สำหรับตรวจสอบ URL]
+      console.log("DEBUG: API URL:", url);
+
       const response = await fetch(url);
       const result = await response.json();
       
       const rawItems = response.ok ? (result.items || []) : [];
-      
-      // ✅ [FIX]: ลบขั้นตอน De-duplication ออกไปแล้วเนื่องจาก API ดึงมาแบบรวมแล้วไม่ควรซ้ำซ้อนกัน
       
       setAllOffers(rawItems);
       // กรองและนับจำนวนด้วยชุดข้อมูลใหม่ และ Filter ปัจจุบัน
@@ -165,7 +170,6 @@ export default function OffersScreen({ navigation }) {
     useCallback(() => {
       // โหลดข้อมูลทั้งหมดเมื่อเข้าสู่หน้าจอ
       fetchAllOffers(); 
-      // ⚠️ ไม่มี dependency [filter] เพราะการเปลี่ยน filter จะจัดการด้วย handleFilterChange
     }, []) 
   );
   
