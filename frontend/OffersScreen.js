@@ -1,5 +1,3 @@
-// File: frontend/OffersScreen.js
-
 import React, { useState, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, FlatList, 
@@ -16,17 +14,16 @@ const OfferItem = ({ item, navigation }) => {
   const getStatusStyle = (status) => {
     switch (status) {
       case 'open': return { color: '#FFB800', text: 'รอการตอบรับ' };
-      case 'negotiating': return { color: '#0D6EfD', text: 'กำลังต่อรอง' };
+      case 'negotiating': return { color: '#0D6EfD', text: 'กำลังต่อรอง' }; // เผื่อมีสถานะนี้
       case 'accepted': return { color: '#1E9E4F', text: 'ดีลสำเร็จ' };
       case 'rejected': return { color: '#D9534F', text: 'ปฏิเสธ' };
       case 'cancelled': return { color: '#666', text: 'ยกเลิก' };
-      default: return { color: '#888', text: 'ไม่ทราบสถานะ' };
+      default: return { color: '#888', text: 'สถานะ: ' + status };
     }
   };
   
-  // ✅ ใช้ status จาก item เป็นหลัก 
+  // ใช้ status จาก item เป็นหลัก 
   const statusInfo = getStatusStyle(item.status || item.priceStatus); 
-  
   const offeredPrice = item.offeredPrice || item.requestedPrice || 0;
   
   let dateString = '...';
@@ -37,20 +34,42 @@ const OfferItem = ({ item, navigation }) => {
   }
 
   const handleViewDeal = () => {
-    navigation.navigate('NegotiationDetail', { negotiationId: item.id });
+    // ส่งข้อมูลทั้ง negotiation และ id ไปยังหน้ารายละเอียด
+    navigation.navigate('NegotiationDetail', { 
+        negotiation: item,
+        negotiationId: item.id,
+        // ส่ง item ไปในชื่อ 'item' ด้วยเพื่อความชัวร์ (รองรับโค้ดเก่า)
+        item: item 
+    });
   };
 
   return (
     <TouchableOpacity style={styles.offerCard} onPress={handleViewDeal}>
       <View style={styles.cardHeader}>
-        <Text style={styles.productName}>Order #{item.orderId ? item.orderId.slice(-6) : '???'}</Text>
-        {/* แสดงสถานะที่ถูกต้องตามข้อมูลที่ได้ */}
+        <Text style={styles.productName}>
+            {/* แสดงชื่อสินค้า หรือ Order ID */}
+            {item.grade ? `ลำไย เกรด ${item.grade}` : `Order #${item.orderId ? item.orderId.slice(-6) : '???'}`}
+        </Text>
+        {/* แสดงสถานะ: รอการตอบรับ, ดีลสำเร็จ, ปฏิเสธ */}
         <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.text}</Text>
       </View>
+      
       <View style={styles.cardBody}>
-        <Text style={styles.detailText}>เกรด: <Text style={styles.boldText}>{item.grade}</Text></Text>
-        <Text style={styles.detailText}>จำนวน: <Text style={styles.boldText}>{item.amountKg} กก.</Text></Text>
+        {/* ✅ 1. แก้ไขการแสดงน้ำหนักให้มีตัวเลข */}
+        <View style={styles.rowDetail}>
+             <Ionicons name="scale-outline" size={16} color="#555" />
+             <Text style={styles.detailText}> 
+                ปริมาณ: <Text style={styles.boldText}>{item.amountKg ? Number(item.amountKg).toLocaleString() : '-'} </Text> กก.
+             </Text>
+        </View>
+        <View style={styles.rowDetail}>
+             <Ionicons name="location-outline" size={16} color="#555" />
+             <Text style={styles.detailText}> 
+                จังหวัด: <Text style={styles.boldText}>{item.province || 'ไม่ระบุ'}</Text>
+             </Text>
+        </View>
       </View>
+
       <View style={styles.cardFooter}>
         <View style={styles.priceContainer}>
           <Text style={styles.priceLabel}>ราคาเสนอ</Text>
@@ -66,21 +85,15 @@ const OfferItem = ({ item, navigation }) => {
   );
 }; 
 
-// --- Helper function for sorting and date parsing ---
 const getSortableDate = (item) => {
     if (!item || !item.updatedAt) return new Date(0); 
-    
-    // Handle Firebase Timestamp format { _seconds: N }
     if (item.updatedAt._seconds) {
         return new Date(item.updatedAt._seconds * 1000);
     }
-    
-    // Handle standard Date string/object
     return new Date(item.updatedAt);
 };
 
 export default function OffersScreen({ navigation }) {
-  // ✅ [NEW STATE]: เก็บรายการทั้งหมดที่ดึงมาจาก API (ไม่ถูกกรอง)
   const [allOffers, setAllOffers] = useState([]); 
   const [filteredOffers, setFilteredOffers] = useState([]); 
   const [loading, setLoading] = useState(true);
@@ -89,24 +102,25 @@ export default function OffersScreen({ navigation }) {
   const [counts, setCounts] = useState({ active: 0, accepted: 0, failed: 0 });
   const [filter, setFilter] = useState('active'); 
   
-  // ✅ [NEW FUNCTION]: ฟังก์ชันใหม่สำหรับกรองและนับจำนวนจากชุดข้อมูลทั้งหมด
+  // ฟังก์ชันกรองข้อมูลและนับจำนวน
   const applyFiltersAndCounts = (offers, currentFilter) => {
       let activeCount = 0;
       let acceptedCount = 0;
       let failedCount = 0;
       let finalFilteredItems = [];
       
-      // เรียงลำดับรายการตามวันที่ล่าสุดอีกครั้ง
+      // เรียงลำดับตามวันที่ล่าสุด
       offers.sort((a,b) => getSortableDate(b) - getSortableDate(a));
       
       offers.forEach(item => {
-          // 1. Calculate Counts (Local Filtering for Counts)
           const status = item.status;
+          
+          // นับจำนวนในแต่ละหมวดหมู่
           if (status === 'open' || status === 'negotiating') activeCount++;
           if (status === 'accepted') acceptedCount++;
           if (status === 'rejected' || status === 'cancelled') failedCount++;
 
-          // 2. Apply selected Filter for Display (Local Filtering for Display)
+          // กรองรายการตาม Tab ที่เลือกอยู่
           if (currentFilter === 'active' && (status === 'open' || status === 'negotiating')) {
               finalFilteredItems.push(item);
           } else if (currentFilter === 'accepted' && status === 'accepted') {
@@ -120,19 +134,13 @@ export default function OffersScreen({ navigation }) {
       setFilteredOffers(finalFilteredItems);
   }
 
-  // ✅ [MODIFIED FUNCTION]: ดึงข้อมูลทั้งหมดมาเพียงครั้งเดียว
   const fetchAllOffers = async () => {
     setLoading(true);
-
     try {
       const userId = await AsyncStorage.getItem('userId');
       const role = await AsyncStorage.getItem('userRole');
       
       setUserRole(role); 
-
-      // ⬇️ [โค้ด Debug สำหรับตรวจสอบ ID]
-      console.log("DEBUG: Current User ID (AsyncStorage):", userId); 
-      console.log("DEBUG: Current Role (AsyncStorage):", role); 
 
       if (!userId || !role) {
         setLoading(false);
@@ -140,20 +148,15 @@ export default function OffersScreen({ navigation }) {
       }
       
       const baseFilter = role === 'farmer' ? `farmerId=${userId}` : `buyerId=${userId}`;
-      
-      // ดึงข้อมูลทั้งหมด (สูงสุด 200 รายการ ตามการตั้งค่าใน Backend) โดยไม่ต้องระบุ status
+      // ดึงข้อมูลทั้งหมด
       const url = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&limit=200`; 
       
-      // ⬇️ [โค้ด Debug สำหรับตรวจสอบ URL]
-      console.log("DEBUG: API URL:", url);
-
       const response = await fetch(url);
       const result = await response.json();
       
-      const rawItems = response.ok ? (result.items || []) : [];
+      const rawItems = response.ok && Array.isArray(result.items) ? result.items : [];
       
       setAllOffers(rawItems);
-      // กรองและนับจำนวนด้วยชุดข้อมูลใหม่ และ Filter ปัจจุบัน
       applyFiltersAndCounts(rawItems, filter); 
 
     } catch (e) {
@@ -165,32 +168,27 @@ export default function OffersScreen({ navigation }) {
     }
   };
 
-  // 4. ใช้ useFocusEffect เพื่อให้โหลดใหม่ทุกครั้งที่กลับมาหน้านี้
   useFocusEffect(
     useCallback(() => {
-      // โหลดข้อมูลทั้งหมดเมื่อเข้าสู่หน้าจอ
       fetchAllOffers(); 
     }, []) 
   );
   
-  // ✅ [MODIFIED]: เมื่อกด tab ให้เปลี่ยน filter และกรองข้อมูลที่มีอยู่
   const handleFilterChange = (newFilter) => {
     if (newFilter === filter) return;
     setFilter(newFilter);
-    // กรองจากข้อมูลทั้งหมด (allOffers) ที่โหลดมาแล้ว
     applyFiltersAndCounts(allOffers, newFilter);
   }
   
-  // --- Main Render ---
   return (
     <SafeAreaView style={styles.safeArea}>
       
-      {/* [📍 เพิ่มแถบ Filter] */}
+      {/* ✅ 2. แถบ Filter Tabs: กดตรงนี้เพื่อดูรายการ "ยอมรับ" หรือ "ปฏิเสธ" */}
       <View style={styles.filterContainer}>
         {
-          [{ key: 'active', label: 'กำลังดีล', countKey: 'active' }, 
+          [{ key: 'active', label: 'กำลังเจรจา', countKey: 'active' }, 
             { key: 'accepted', label: 'ดีลสำเร็จ', countKey: 'accepted' }, 
-            { key: 'failed', label: 'ถูกปฏิเสธ/ยกเลิก', countKey: 'failed' }]
+            { key: 'failed', label: 'ปฏิเสธ/ยกเลิก', countKey: 'failed' }]
             .map((tab) => (
                 <TouchableOpacity
                     key={tab.key}
@@ -204,7 +202,6 @@ export default function OffersScreen({ navigation }) {
                         styles.filterButtonText,
                         filter === tab.key && styles.filterButtonTextActive
                     ]}>
-                        {/* ใช้ counts state ที่ดึงมาอย่างถูกต้อง */}
                         {tab.label} ({counts[tab.countKey] || 0}) 
                     </Text>
                 </TouchableOpacity>
@@ -220,14 +217,10 @@ export default function OffersScreen({ navigation }) {
       ) : filteredOffers.length === 0 && !loading ? (
           <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={80} color="#CCCCCC" />
-              <Text style={styles.emptyText}>ไม่พบรายการเจรจาในหมวดหมู่นี้</Text>
+              <Text style={styles.emptyText}>ไม่พบรายการในหมวดหมู่นี้</Text>
               <Text style={styles.emptySubText}>
-                  {userRole === 'farmer' 
-                      ? 'รอผู้ซื้อยื่นข้อเสนอเข้ามา หรือลองเลือกหมวดหมู่อื่น'
-                      : 'ไปที่ "ตลาดลำไย" เพื่อเลือกสินค้าและกดเจรจา หรือลองเลือกหมวดหมู่อื่น'
-                  }
+                 ลองกดเปลี่ยนแท็บด้านบนเพื่อดูรายการอื่น ๆ
               </Text>
-              {/* เปลี่ยนเป็นเรียก fetchAllOffers */}
               <TouchableOpacity onPress={fetchAllOffers} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>โหลดใหม่</Text>
               </TouchableOpacity>
@@ -239,7 +232,6 @@ export default function OffersScreen({ navigation }) {
               keyExtractor={item => item.id}
               contentContainerStyle={styles.listContainer}
               refreshing={loading}
-              // ✅ [MODIFIED]: onRefresh เรียก fetchAllOffers
               onRefresh={fetchAllOffers} 
           />
       )}
@@ -247,12 +239,11 @@ export default function OffersScreen({ navigation }) {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F4F4F4' },
   listContainer: { padding: 10, paddingBottom: 20 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 50 },
-  emptyText: { fontSize: 20, fontWeight: 'bold', color: '#888', marginTop: 10, textAlign: 'center' },
+  emptyText: { fontSize: 18, fontWeight: 'bold', color: '#888', marginTop: 10, textAlign: 'center' },
   emptySubText: { fontSize: 14, color: '#AAA', textAlign: 'center', marginTop: 5 },
   offerCard: {
     backgroundColor: '#FFFFFF',
@@ -279,7 +270,8 @@ const styles = StyleSheet.create({
   productName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   statusText: { fontSize: 14, fontWeight: 'bold' },
   cardBody: { marginBottom: 10 },
-  detailText: { fontSize: 14, color: '#555', lineHeight: 24 },
+  rowDetail: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  detailText: { fontSize: 14, color: '#555', marginLeft: 6 },
   boldText: { fontWeight: '600', color: '#333' },
   cardFooter: {
     flexDirection: 'row',
@@ -292,7 +284,7 @@ const styles = StyleSheet.create({
   weightContainer: { flex: 1, alignItems: 'flex-end' },
   priceLabel: { fontSize: 12, color: '#888', marginBottom: 2 },
   priceText: { fontSize: 20, fontWeight: 'bold', color: '#1E9E4F' },
-  weightText: { fontSize: 14, color: '#555', marginTop: 5 },
+  weightText: { fontSize: 12, color: '#888', marginTop: 5 },
   priceUnit: { fontSize: 12, color: '#888' },
   retryButton: {
     backgroundColor: '#E8F5E9',
@@ -306,7 +298,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   
-  // [📍 Styles ใหม่สำหรับ Filter Tab]
+  // Styles สำหรับ Filter Tabs
   filterContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
