@@ -5,30 +5,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-
-// 1. Import ฟังก์ชันสำหรับ Modular SDK (Firestore & Auth)
-import { collection, addDoc, serverTimestamp, getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-
-// 2. Import 'firebase' object ตัวหลักจาก Config เดิม
-import { firebase } from './firebaseConfig'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 3. สร้าง Instance ของ db และ auth สำหรับหน้านี้
-const db = getFirestore(firebase.app());
-const auth = getAuth(firebase.app());
+// 1. Import API Config
+import { API_BASE_URL } from './apiConfig'; 
 
 export default function NegotiationDetailScreen({ route, navigation }) {
-  // รับค่า item ที่ส่งมาจากหน้า ListingDetailScreen
   const { item } = route.params;
   
   const [offeredPrice, setOfferedPrice] = useState('');
+  const [amountKg, setAmountKg] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [amountKg, setAmountKg] = useState(''); // เพิ่ม State สำหรับปริมาณ (ถ้าต้องการต่อรอง)
 
   useEffect(() => {
-    // ตั้งค่าเริ่มต้น
     if (item.requestedPrice) {
       setOfferedPrice(item.requestedPrice.toString());
     }
@@ -38,111 +28,69 @@ export default function NegotiationDetailScreen({ route, navigation }) {
   }, [item]);
 
   const handleCreateNegotiation = async () => {
-    // 1. ตรวจสอบข้อมูลเบื้องต้น
+    // 1. ตรวจสอบข้อมูล
     if (!offeredPrice.trim()) {
       Alert.alert('กรุณาระบุราคา', 'โปรดใส่ราคาที่คุณต้องการเสนอ');
       return;
     }
 
-    // 2. ตรวจสอบการล็อกอิน (สำคัญมากสำหรับ Security Rules)
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      Alert.alert('แจ้งเตือน', 'ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+    // 2. ดึง User ID และ Role
+    const userId = await AsyncStorage.getItem('userId');
+    const userRole = await AsyncStorage.getItem('userRole'); // ดึง Role เพื่อเลือกหน้าปลายทาง
+    
+    if (!userId) {
+      Alert.alert('แจ้งเตือน', 'ไม่พบข้อมูลผู้ใช้ กรุณาล็อกอินใหม่');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // 3. กำหนดบทบาท (Role Assignment)
-      // targetOwnerId คือเจ้าของโพสต์ (อาจจะเป็นคนขาย หรือ คนรับซื้อ ก็ได้)
-      const targetOwnerId = item.ownerId || item.farmerId || item.factoryId || item.buyerId;
-      
-      let finalFarmerId;
-      let finalFactoryId;
-
-      if (item.type === 'buy') {
-        // กรณี "ประกาศรับซื้อ" (Buy Request)
-        // - เจ้าของโพสต์ = โรงงาน/ผู้ซื้อ (Factory)
-        // - เรา (คนกด) = เกษตรกร (Farmer)
-        finalFactoryId = targetOwnerId;
-        finalFarmerId = currentUser.uid;
-      } else {
-        // กรณี "ประกาศขาย" (Sell Request)
-        // - เจ้าของโพสต์ = เกษตรกร (Farmer)
-        // - เรา (คนกด) = โรงงาน/ผู้ซื้อ (Factory)
-        finalFarmerId = targetOwnerId;
-        finalFactoryId = currentUser.uid;
-      }
-
-      // ตรวจสอบว่าไม่ได้คุยกับตัวเอง
-      if (finalFarmerId === finalFactoryId) {
-         Alert.alert('ข้อผิดพลาด', 'คุณไม่สามารถเจรจากับโพสต์ของตัวเองได้');
-         setIsSubmitting(false);
-         return;
-      }
-
-      // 4. เตรียมข้อมูลสำหรับบันทึก (Payload)
-      // ใช้ชื่อ field ให้ตรงกับ backend (factoryId, farmerId)
-      const negotiationData = {
-        orderId: item.id, // สำคัญ: เชื่อมโยงกับ Order ต้นฉบับ
-        itemId: item.id,  // (สำรอง)
-        itemName: item.plantType || 'สินค้าเกษตร',
-        itemImage: item.image || null,
-        
-        // ข้อมูลคู่กรณี
-        factoryId: finalFactoryId, // ใช้ factoryId ตาม Data Model
-        buyerId: finalFactoryId,   // (สำรอง) เผื่อบางจุดใช้ buyerId
-        farmerId: finalFarmerId,
-        
-        // ข้อมูลสำหรับ Security Rules
-        initiatorId: currentUser.uid, 
-        
-        status: 'open', // หรือ 'pending' ตามที่ backend ใช้
-        
-        // รายละเอียดข้อเสนอ
-        originalPrice: Number(item.requestedPrice || 0),
-        requestedPrice: Number(item.requestedPrice || 0),
+      // 3. เตรียมข้อมูลสำหรับ API
+      const payload = {
+        actorId: userId, 
         offeredPrice: Number(offeredPrice),
         amountKg: Number(amountKg || item.amountKg || 0),
-        
-        // ข้อมูลอื่นๆ
-        province: item.province || '',
-        amphoe: item.amphoe || '',
-        grade: item.grade || '',
-        
-        // ข้อความแรก (ถ้ามี)
-        lastMessage: message || 'เริ่มการเจรจา',
-        lastSide: (currentUser.uid === finalFarmerId) ? 'farmer' : 'factory',
-        
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        details: message 
       };
 
-      console.log("Sending Negotiation Data:", negotiationData);
+      console.log("Sending API Request:", payload);
 
-      // 5. บันทึกลง Firestore
-      await addDoc(collection(db, 'negotiations'), negotiationData);
+      // 4. ยิง API
+      const response = await fetch(`${API_BASE_URL}/orderApi/orders/${item.id}/negotiations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
 
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
+      }
+
+      // 5. สำเร็จ -> Navigate ไปยัง Tab ที่ถูกต้องตาม App.js
       Alert.alert('สำเร็จ', 'ส่งคำขอเจรจาเรียบร้อยแล้ว', [
         { 
           text: 'ตกลง', 
           onPress: () => {
-            // กลับไปหน้ารายการเจรจา หรือหน้า OffersScreen
-            // ตรวจสอบว่าใน Stack Navigator ของคุณชื่อ 'Offers' หรือไม่
-            navigation.navigate('Offers'); 
+            // ✅ แก้ไขจุดที่ Error: เช็ค Role แล้วไปให้ถูกชื่อ Tab
+            if (userRole === 'buyer') {
+                // ผู้ซื้อ -> ไปที่ BuyerApp -> MyBidsTab
+                navigation.navigate('BuyerApp', { screen: 'MyBidsTab' });
+            } else {
+                // เกษตรกร -> ไปที่ MainApp -> OffersTab
+                navigation.navigate('MainApp', { screen: 'OffersTab' });
+            }
           } 
         }
       ]);
 
     } catch (error) {
       console.error("Error creating negotiation:", error);
-      
-      if (error.code === 'permission-denied') {
-        Alert.alert('สิทธิ์การเข้าถึงถูกปฏิเสธ', 'กรุณาตรวจสอบว่าคุณล็อกอินถูกต้อง หรือกฎความปลอดภัยของระบบ (Rules) ได้รับการอัปเดตแล้ว');
-      } else {
-        Alert.alert('เกิดข้อผิดพลาด', `ไม่สามารถสร้างการเจรจาได้: ${error.message}`);
-      }
+      Alert.alert('เกิดข้อผิดพลาด', `ไม่สามารถส่งคำขอได้: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,7 +148,7 @@ export default function NegotiationDetailScreen({ route, navigation }) {
               onChangeText={setAmountKg}
               keyboardType="numeric"
               placeholder="ระบุปริมาณ"
-              editable={false} // ปิดไว้ก่อนถ้าไม่ต้องการให้แก้ปริมาณในรอบแรก
+              editable={false} 
             />
             <Text style={styles.hint}>*ปริมาณอ้างอิงจากประกาศ</Text>
 
@@ -241,7 +189,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   backButton: { padding: 5 },
-  
   itemCard: {
     backgroundColor: '#FFF', padding: 15, borderRadius: 12, marginBottom: 20,
     elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4
@@ -250,7 +197,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   label: { fontSize: 14, color: '#666' },
   value: { fontSize: 14, color: '#333', fontWeight: '600' },
-
   formContainer: { marginBottom: 30 },
   inputLabel: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 8, marginTop: 10 },
   input: {
@@ -259,7 +205,6 @@ const styles = StyleSheet.create({
   },
   textArea: { height: 100 },
   hint: { fontSize: 12, color: '#999', marginTop: 5, marginBottom: 10 },
-
   submitButton: {
     backgroundColor: '#1E9E4F', padding: 15, borderRadius: 10, alignItems: 'center',
     elevation: 3
