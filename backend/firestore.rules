@@ -2,6 +2,79 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================================================
+    // Helper Functions (ฟังก์ชันช่วยตรวจสอบ)
+    // =========================================================
+    
+    // ตรวจสอบว่าล็อกอินแล้วหรือยัง
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ตรวจสอบว่าเป็นเจ้าของ User ID นั้นหรือไม่
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // =========================================================
+    // 1. Users Collection (ข้อมูลผู้ใช้)
+    // =========================================================
+    match /users/{userId} {
+      // อนุญาตให้อ่านได้ทุกคน (เช่น ดูหน้าโปรไฟล์ร้านค้า)
+      allow read: if true; 
+      
+      // อนุญาตให้เขียนได้เฉพาะเจ้าของบัญชีนั้นเอง
+      allow write: if isUser(userId);
+    }
+
+    // =========================================================
+    // 2. Orders Collection (ประกาศซื้อ-ขาย)
+    // =========================================================
+    match /orders/{orderId} {
+      // อนุญาตให้อ่านได้ทุกคน (Public Market)
+      allow read: if true;
+      
+      // อนุญาตให้สร้าง ถ้าล็อกอินแล้ว และระบุ ownerId ตรงกับตัวเอง
+      allow create: if isSignedIn() 
+                    && request.resource.data.ownerId == request.auth.uid;
+
+      // อนุญาตให้แก้ไข/ลบ เฉพาะเจ้าของประกาศ
+      allow update, delete: if isSignedIn() 
+                            && resource.data.ownerId == request.auth.uid;
+    }
+
+    // =========================================================
+    // 3. Negotiations Collection (การเจรจาต่อรอง) **จุดที่เกิด Error**
+    // =========================================================
+    match /negotiations/{negotiationId} {
+      // -------------------------------------------------------
+      // กฎการสร้าง (Create)
+      // -------------------------------------------------------
+      // อนุญาตให้สร้างได้ ถ้า:
+      // 1. ล็อกอินแล้ว
+      // 2. ผู้ใช้ต้องเป็นฝ่ายใดฝ่ายหนึ่งในรายการนี้ (Farmer หรือ Buyer/Factory)
+      allow create: if isSignedIn() && (
+        request.resource.data.farmerId == request.auth.uid || 
+        request.resource.data.buyerId == request.auth.uid ||
+        request.resource.data.factoryId == request.auth.uid
+      );
+
+      // -------------------------------------------------------
+      // กฎการอ่านและแก้ไข (Read & Update)
+      // -------------------------------------------------------
+      // อนุญาตให้อ่านหรือตอบกลับได้ ถ้า:
+      // เป็นคู่กรณีในห้องเจรจานั้นๆ (เช็คจากข้อมูลที่มีอยู่เดิมใน Database)
+      allow read, update: if isSignedIn() && (
+        resource.data.farmerId == request.auth.uid || 
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.factoryId == request.auth.uid
+      );
+    }
+
+    // =========================================================
+    // Default Rules (กันเหนียว)
+    // =========================================================
     match /{document=**} {
       allow read, write: if false;
     }

@@ -5,9 +5,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from './firebaseConfig'; // ตรวจสอบ path ให้ตรงกับโปรเจคของคุณ
+
+// 1. Import ฟังก์ชันสำหรับ Modular SDK (Firestore & Auth)
+import { collection, addDoc, serverTimestamp, getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+
+// 2. Import 'firebase' object ตัวหลักจาก Config เดิม
+import { firebase } from './firebaseConfig'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 3. สร้าง Instance ของ db และ auth สำหรับหน้านี้
+const db = getFirestore(firebase.app());
+const auth = getAuth(firebase.app());
 
 export default function NegotiationDetailScreen({ route, navigation }) {
   // รับค่า item ที่ส่งมาจากหน้า ListingDetailScreen
@@ -16,104 +25,124 @@ export default function NegotiationDetailScreen({ route, navigation }) {
   const [offeredPrice, setOfferedPrice] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const [amountKg, setAmountKg] = useState(''); // เพิ่ม State สำหรับปริมาณ (ถ้าต้องการต่อรอง)
 
   useEffect(() => {
-    const loadUser = async () => {
-      // ดึง User ID จาก AsyncStorage หรือ auth
-      const id = await AsyncStorage.getItem('userId') || auth.currentUser?.uid;
-      setCurrentUserId(id);
-      
-      // ตั้งราคาเสนอเริ่มต้นเท่ากับราคาที่ตั้งไว้ (เพื่อความสะดวก)
-      if (item.requestedPrice) {
-        setOfferedPrice(item.requestedPrice.toString());
-      }
-    };
-    loadUser();
-  }, []);
+    // ตั้งค่าเริ่มต้น
+    if (item.requestedPrice) {
+      setOfferedPrice(item.requestedPrice.toString());
+    }
+    if (item.amountKg) {
+      setAmountKg(item.amountKg.toString());
+    }
+  }, [item]);
 
   const handleCreateNegotiation = async () => {
+    // 1. ตรวจสอบข้อมูลเบื้องต้น
     if (!offeredPrice.trim()) {
       Alert.alert('กรุณาระบุราคา', 'โปรดใส่ราคาที่คุณต้องการเสนอ');
       return;
     }
 
-    if (!currentUserId) {
-      Alert.alert('ข้อผิดพลาด', 'ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่');
+    // 2. ตรวจสอบการล็อกอิน (สำคัญมากสำหรับ Security Rules)
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert('แจ้งเตือน', 'ไม่พบข้อมูลผู้ใช้ กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      let targetBuyerId;
-      let targetFarmerId;
-      let targetOwnerId = item.ownerId || item.farmerId || item.buyerId; // รับค่า ownerId จาก field ที่มี
+      // 3. กำหนดบทบาท (Role Assignment)
+      // targetOwnerId คือเจ้าของโพสต์ (อาจจะเป็นคนขาย หรือ คนรับซื้อ ก็ได้)
+      const targetOwnerId = item.ownerId || item.farmerId || item.factoryId || item.buyerId;
+      
+      let finalFarmerId;
+      let finalFactoryId;
 
-      // ==========================================
-      // 🔥 FIX: Logic การระบุตัวตนที่ถูกต้อง
-      // ==========================================
       if (item.type === 'buy') {
-        // กรณี 1: "ประกาศรับซื้อ" (Buy Request)
-        // - เจ้าของโพสต์ คือ ผู้รับซื้อ (Buyer)
-        // - คนที่กดเข้ามา (เรา) คือ เกษตรกร (Farmer) ที่จะขายของให้
-        targetBuyerId = targetOwnerId;   
-        targetFarmerId = currentUserId;  
+        // กรณี "ประกาศรับซื้อ" (Buy Request)
+        // - เจ้าของโพสต์ = โรงงาน/ผู้ซื้อ (Factory)
+        // - เรา (คนกด) = เกษตรกร (Farmer)
+        finalFactoryId = targetOwnerId;
+        finalFarmerId = currentUser.uid;
       } else {
-        // กรณี 2: "ประกาศขาย" (Sell Request)
-        // - เจ้าของโพสต์ คือ เกษตรกร (Farmer)
-        // - คนที่กดเข้ามา (เรา) คือ ผู้รับซื้อ (Buyer) ที่จะซื้อของ
-        targetFarmerId = targetOwnerId;  
-        targetBuyerId = currentUserId;   
+        // กรณี "ประกาศขาย" (Sell Request)
+        // - เจ้าของโพสต์ = เกษตรกร (Farmer)
+        // - เรา (คนกด) = โรงงาน/ผู้ซื้อ (Factory)
+        finalFarmerId = targetOwnerId;
+        finalFactoryId = currentUser.uid;
       }
 
-      // ตรวจสอบข้อมูลก่อนบันทึก (Debug)
-      console.log("Creating Negotiation:", {
-        type: item.type,
-        buyerId: targetBuyerId,
-        farmerId: targetFarmerId,
-        itemId: item.id
-      });
+      // ตรวจสอบว่าไม่ได้คุยกับตัวเอง
+      if (finalFarmerId === finalFactoryId) {
+         Alert.alert('ข้อผิดพลาด', 'คุณไม่สามารถเจรจากับโพสต์ของตัวเองได้');
+         setIsSubmitting(false);
+         return;
+      }
 
-      // บันทึกลง Collection 'negotiations'
-      await addDoc(collection(db, 'negotiations'), {
-        itemId: item.id,
-        itemName: item.plantType || 'สินค้าเกษตร', // ชื่อสินค้า
-        itemImage: item.image || null,            // รูปสินค้า (ถ้ามี)
+      // 4. เตรียมข้อมูลสำหรับบันทึก (Payload)
+      // ใช้ชื่อ field ให้ตรงกับ backend (factoryId, farmerId)
+      const negotiationData = {
+        orderId: item.id, // สำคัญ: เชื่อมโยงกับ Order ต้นฉบับ
+        itemId: item.id,  // (สำรอง)
+        itemName: item.plantType || 'สินค้าเกษตร',
+        itemImage: item.image || null,
         
-        buyerId: targetBuyerId,
-        farmerId: targetFarmerId,
+        // ข้อมูลคู่กรณี
+        factoryId: finalFactoryId, // ใช้ factoryId ตาม Data Model
+        buyerId: finalFactoryId,   // (สำรอง) เผื่อบางจุดใช้ buyerId
+        farmerId: finalFarmerId,
         
-        // เก็บ ID ของผู้เริ่มเจรจา เพื่อใช้แยกแยะว่าใครเป็นคนทัก
-        initiatorId: currentUserId, 
+        // ข้อมูลสำหรับ Security Rules
+        initiatorId: currentUser.uid, 
         
-        status: 'pending', // สถานะเริ่มต้น: รอการตอบรับ
+        status: 'open', // หรือ 'pending' ตามที่ backend ใช้
         
-        // ข้อมูลข้อเสนอ
+        // รายละเอียดข้อเสนอ
         originalPrice: Number(item.requestedPrice || 0),
+        requestedPrice: Number(item.requestedPrice || 0),
         offeredPrice: Number(offeredPrice),
-        amountKg: Number(item.amountKg || 0),
+        amountKg: Number(amountKg || item.amountKg || 0),
+        
+        // ข้อมูลอื่นๆ
+        province: item.province || '',
+        amphoe: item.amphoe || '',
+        grade: item.grade || '',
         
         // ข้อความแรก (ถ้ามี)
         lastMessage: message || 'เริ่มการเจรจา',
-        lastMessageTime: serverTimestamp(),
+        lastSide: (currentUser.uid === finalFarmerId) ? 'farmer' : 'factory',
+        
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      console.log("Sending Negotiation Data:", negotiationData);
+
+      // 5. บันทึกลง Firestore
+      await addDoc(collection(db, 'negotiations'), negotiationData);
 
       Alert.alert('สำเร็จ', 'ส่งคำขอเจรจาเรียบร้อยแล้ว', [
         { 
           text: 'ตกลง', 
           onPress: () => {
-            // กลับไปหน้าก่อนหน้า หรือไปหน้ารายการเจรจา
-            navigation.navigate('Offers'); // หรือชื่อหน้าตามที่คุณตั้งไว้สำหรับรายการเจรจา
+            // กลับไปหน้ารายการเจรจา หรือหน้า OffersScreen
+            // ตรวจสอบว่าใน Stack Navigator ของคุณชื่อ 'Offers' หรือไม่
+            navigation.navigate('Offers'); 
           } 
         }
       ]);
 
     } catch (error) {
       console.error("Error creating negotiation:", error);
-      Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างการเจรจาได้ ลองใหม่อีกครั้ง');
+      
+      if (error.code === 'permission-denied') {
+        Alert.alert('สิทธิ์การเข้าถึงถูกปฏิเสธ', 'กรุณาตรวจสอบว่าคุณล็อกอินถูกต้อง หรือกฎความปลอดภัยของระบบ (Rules) ได้รับการอัปเดตแล้ว');
+      } else {
+        Alert.alert('เกิดข้อผิดพลาด', `ไม่สามารถสร้างการเจรจาได้: ${error.message}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -148,6 +177,10 @@ export default function NegotiationDetailScreen({ route, navigation }) {
               <Text style={styles.label}>ปริมาณ:</Text>
               <Text style={styles.value}>{item.amountKg} กก.</Text>
             </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>พื้นที่:</Text>
+              <Text style={styles.value}>{item.amphoe}, {item.province}</Text>
+            </View>
           </View>
 
           <View style={styles.formContainer}>
@@ -159,6 +192,17 @@ export default function NegotiationDetailScreen({ route, navigation }) {
               keyboardType="numeric"
               placeholder="ระบุราคา"
             />
+
+            <Text style={styles.inputLabel}>ปริมาณ (กก.)</Text>
+            <TextInput
+              style={styles.input}
+              value={amountKg}
+              onChangeText={setAmountKg}
+              keyboardType="numeric"
+              placeholder="ระบุปริมาณ"
+              editable={false} // ปิดไว้ก่อนถ้าไม่ต้องการให้แก้ปริมาณในรอบแรก
+            />
+            <Text style={styles.hint}>*ปริมาณอ้างอิงจากประกาศ</Text>
 
             <Text style={styles.inputLabel}>ข้อความเพิ่มเติม (ถ้ามี)</Text>
             <TextInput
@@ -214,6 +258,7 @@ const styles = StyleSheet.create({
     padding: 12, fontSize: 16, color: '#333'
   },
   textArea: { height: 100 },
+  hint: { fontSize: 12, color: '#999', marginTop: 5, marginBottom: 10 },
 
   submitButton: {
     backgroundColor: '#1E9E4F', padding: 15, borderRadius: 10, alignItems: 'center',
