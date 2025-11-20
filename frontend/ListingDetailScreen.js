@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, ScrollView, 
-  TouchableOpacity, Image, Alert 
+  TouchableOpacity, Alert 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +29,6 @@ export default function ListingDetailScreen({ route, navigation }) {
   }
 
   // เช็คว่าเป็นประกาศของตัวเองหรือไม่?
-  // (ถ้าใช่ -> ซ่อนปุ่มเจรจา)
   const isOwner = currentUserId === (item.ownerId || item.farmerId || item.buyerId);
 
   // ฟังก์ชันไปหน้าเจรจา
@@ -39,6 +38,7 @@ export default function ListingDetailScreen({ route, navigation }) {
       return;
     }
     // ส่งข้อมูล item ไปที่หน้า NegotiationDetail เพื่อเริ่มดีลใหม่
+    // (ตรงนี้ส่งข้อมูลถูกต้องแล้วครับ ปัญหาที่เลข 0 น่าจะอยู่ที่ไฟล์รับ)
     navigation.navigate('NegotiationDetail', { item: item });
   };
 
@@ -119,7 +119,7 @@ export default function ListingDetailScreen({ route, navigation }) {
       {!isOwner && (
           <View style={styles.footer}>
             <TouchableOpacity style={styles.negotiateButton} onPress={handleStartNegotiation}>
-                <Ionicons name="chatbubbles-ellipses" size={24} color="#FFF" style={{marginRight:10}} />
+                {/* ลบ Icon ตรงนี้ออกแล้ว เพื่อไม่ให้ขึ้นตัว ? */}
                 <Text style={styles.negotiateButtonText}>สนใจ / ต่อรองราคา</Text>
             </TouchableOpacity>
           </View>

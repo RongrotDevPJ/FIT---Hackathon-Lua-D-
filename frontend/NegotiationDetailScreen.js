@@ -14,12 +14,13 @@ export default function NegotiationDetailScreen({ route, navigation }) {
 
   // เตรียมข้อมูลสำหรับแสดงผล
   const negotiationData = negotiation || (item && (item.offeredPrice !== undefined || item.status === 'negotiating') ? item : null);
-  const productData = order || (item && !negotiationData ? item : item) || {};
+  // ถ้าไม่มี negotiationData ให้ใช้ item เป็น productData
+  const productData = order || item || {};
 
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserToken, setCurrentUserToken] = useState(null);
-  const [userRole, setUserRole] = useState(''); // เก็บ Role เพื่อใช้ตัดสินใจตอนเปลี่ยนหน้า
+  const [userRole, setUserRole] = useState('');
 
   // State สำหรับ Modal
   const [isOfferModalVisible, setIsOfferModalVisible] = useState(false);
@@ -35,7 +36,6 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         
         setCurrentUserId(id);
         setCurrentUserToken(token); 
-        // แปลง Role ให้เป็นตัวเล็กและตัดช่องว่างเพื่อความแม่นยำ
         setUserRole(role ? role.trim().toLowerCase() : '');
       } catch (e) {
         console.error("Error loading user data", e);
@@ -44,16 +44,12 @@ export default function NegotiationDetailScreen({ route, navigation }) {
     loadUser();
   }, []);
 
-  // ✅ 1. ฟังก์ชันนำทางกลับที่ถูกต้อง (แก้ Error Offers not found)
   const handleNavigationBack = () => {
     if (userRole === 'buyer') {
-        // ผู้ซื้อ -> ไปที่ BuyerApp > MyBidsTab
         navigation.navigate('BuyerApp', { screen: 'MyBidsTab' });
     } else if (userRole === 'farmer') {
-        // เกษตรกร -> ไปที่ MainApp > OffersTab
         navigation.navigate('MainApp', { screen: 'OffersTab' });
     } else {
-        // กรณีฉุกเฉิน: ถอยกลับ หรือไปหน้า Login
         if (navigation.canGoBack()) {
             navigation.goBack();
         } else {
@@ -64,7 +60,6 @@ export default function NegotiationDetailScreen({ route, navigation }) {
 
   // --- API Functions ---
 
-  // 2. ฟังก์ชันอัปเดตสถานะ (ยอมรับ/ปฏิเสธ)
   const updateNegotiationStatus = async (actionType) => {
     if (!negotiationData || !negotiationData.id) return;
     if (!currentUserId) { Alert.alert("แจ้งเตือน", "กรุณาเข้าสู่ระบบ"); return; }
@@ -83,7 +78,6 @@ export default function NegotiationDetailScreen({ route, navigation }) {
       const result = await response.json();
       if (response.ok) {
         Alert.alert("สำเร็จ", "ดำเนินการเรียบร้อยแล้ว", [
-          // ✅ เรียกใช้ handleNavigationBack เมื่อกดตกลง
           { text: "ตกลง", onPress: handleNavigationBack } 
         ]);
       } else {
@@ -96,12 +90,12 @@ export default function NegotiationDetailScreen({ route, navigation }) {
     }
   };
 
-  // 3. ฟังก์ชันส่งข้อเสนอ (Start Negotiation / Counter Offer)
   const handleStartNegotiation = async () => {
     if (!currentUserId) { Alert.alert("ข้อผิดพลาด", "กรุณาเข้าสู่ระบบ"); return; }
     
-    const amount = parseFloat(offerAmount);
-    const price = parseFloat(offerPrice);
+    // แปลงค่าและลบลูกน้ำ (,) ออกก่อนแปลงเป็นตัวเลข เพื่อป้องกัน error
+    const amount = parseFloat(offerAmount.replace(/,/g, ''));
+    const price = parseFloat(offerPrice.replace(/,/g, ''));
     
     if (isNaN(amount) || amount <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุน้ำหนักที่ถูกต้อง"); return; }
     if (isNaN(price) || price <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุราคาที่ถูกต้อง"); return; }
@@ -142,7 +136,6 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         
         if (response.ok) {
             Alert.alert("สำเร็จ", "ส่งข้อเสนอเรียบร้อยแล้ว", [
-                // ✅ เรียกใช้ handleNavigationBack เมื่อกดตกลง
                 { text: "ตกลง", onPress: handleNavigationBack } 
             ]);
         } else {
@@ -172,19 +165,36 @@ export default function NegotiationDetailScreen({ route, navigation }) {
   };
 
   const handleNegotiateAction = () => {
-    setOfferPrice(displayData.price ? displayData.price.toString() : '');
-    setOfferAmount(displayData.amount ? displayData.amount.toString() : '');
+    // ดึงค่าปัจจุบันมาใส่ใน Modal (ถ้าเป็น 0 ให้ว่างไว้)
+    const currentPrice = displayData.price ? displayData.price.toString() : '';
+    const currentAmount = displayData.amount ? displayData.amount.toString() : '';
+    
+    setOfferPrice(currentPrice);
+    setOfferAmount(currentAmount);
     setIsOfferModalVisible(true);
   };
 
+  // ✅ จุดที่แก้ไข: ปรับปรุง logic การแสดงผลให้ดึงค่าจาก productData ถ้า negotiationData เป็น 0
   const getDisplayData = () => {
     if (negotiationData) {
         const isMyTurn = negotiationData.actorId !== currentUserId; 
+        
+        // Logic: ลองดึงค่าจากดีล (negotiation) ก่อน -> ถ้าไม่มี/เป็น 0 -> ไปดึงจากสินค้า (productData)
+        let showAmount = negotiationData.amountKg || negotiationData.amount;
+        if (!showAmount || showAmount === 0) {
+            showAmount = productData.amountKg || productData.amount || 0;
+        }
+
+        let showPrice = negotiationData.offeredPrice ?? negotiationData.price;
+        if (!showPrice || showPrice === 0) {
+             showPrice = productData.requestedPrice || productData.price || 0;
+        }
+
         return {
             title: isMyTurn ? `ข้อเสนอจาก ${negotiationData.negotiatorName || 'คู่ค้า'}` : 'ข้อเสนอของคุณ',
             status: negotiationData.status || 'กำลังเจรจา',
-            price: negotiationData.offeredPrice ?? 0,
-            amount: negotiationData.amountKg ?? 0,
+            price: showPrice,
+            amount: showAmount,
             isNegotiation: true,
             isDecisionMaker: isMyTurn
         };
@@ -192,8 +202,8 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         return {
             title: 'รายละเอียดสินค้า',
             status: 'รอข้อเสนอ',
-            price: productData.requestedPrice ?? 0,
-            amount: productData.amountKg ?? 0,
+            price: productData.requestedPrice || productData.price || 0,
+            amount: productData.amountKg || productData.amount || 0,
             isNegotiation: false,
             isDecisionMaker: false
         };
@@ -224,6 +234,7 @@ export default function NegotiationDetailScreen({ route, navigation }) {
                  <View style={{width:1, height:40, backgroundColor:'#EEE'}} />
                  <View style={{flex:1, alignItems:'center'}}>
                     <Text style={styles.label}>ปริมาณ (กก.)</Text>
+                    {/* เพิ่ม toLocaleString() เพื่อให้มีลูกน้ำคั่นหลักพัน */}
                     <Text style={styles.value}>{Number(displayData.amount).toLocaleString()}</Text>
                  </View>
              </View>
@@ -248,7 +259,7 @@ export default function NegotiationDetailScreen({ route, navigation }) {
       <View style={styles.footer}>
         {loading ? <ActivityIndicator size="small" color="#1E9E4F" /> : (
             <>
-             {displayData.isNegotiation && displayData.status === 'open' && displayData.isDecisionMaker ? (
+             {displayData.isNegotiation && displayData.status !== 'accepted' && displayData.status !== 'rejected' && displayData.isDecisionMaker ? (
                  <View style={styles.btnRow}>
                      <TouchableOpacity style={[styles.btn, styles.btnAccept]} onPress={handleAcceptOffer}>
                          <Ionicons name="checkmark" size={20} color="#FFF"/>
@@ -275,10 +286,20 @@ export default function NegotiationDetailScreen({ route, navigation }) {
                             </Text>
                          </TouchableOpacity>
                      ) : (
-                         <View style={styles.waitingBox}>
-                             <Ionicons name="time-outline" size={24} color="#888" />
-                             <Text style={{color:'#666', marginLeft:10}}>รอการตอบรับจากอีกฝ่าย...</Text>
-                         </View>
+                        // เช็คว่าดีลจบหรือยัง
+                        (displayData.status === 'accepted' || displayData.status === 'rejected') ? (
+                             <View style={[styles.waitingBox, {backgroundColor: displayData.status === 'accepted' ? '#E8F5E9' : '#FFEBEE'}]}>
+                                 <Ionicons name={displayData.status === 'accepted' ? "checkmark-circle" : "close-circle"} size={24} color={displayData.status === 'accepted' ? "#4CAF50" : "#D32F2F"} />
+                                 <Text style={{color: displayData.status === 'accepted' ? "#4CAF50" : "#D32F2F", marginLeft:10, fontWeight:'bold'}}>
+                                    {displayData.status === 'accepted' ? 'การเจรจาสำเร็จ' : 'การเจรจาถูกปฏิเสธ'}
+                                 </Text>
+                             </View>
+                        ) : (
+                             <View style={styles.waitingBox}>
+                                 <Ionicons name="time-outline" size={24} color="#888" />
+                                 <Text style={{color:'#666', marginLeft:10}}>รอการตอบรับจากอีกฝ่าย...</Text>
+                             </View>
+                        )
                      )}
                  </View>
              )}
@@ -361,4 +382,4 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', marginTop: 25, justifyContent: 'space-between' },
   modalCancel: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#EEE', borderRadius: 8, marginRight: 10 },
   modalConfirm: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#1E9E4F', borderRadius: 8 }
-});
+})

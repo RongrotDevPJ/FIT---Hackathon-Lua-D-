@@ -71,12 +71,24 @@ function MainAppTabs() {
         tabBarStyle: { height: Platform.OS === 'ios' ? 90 : 80, paddingBottom: Platform.OS === 'android' ? 10 : 0 }
       }}
     >
-      <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: 'หน้าหลัก', tabBarIcon: ({ color, size }) => (<Ionicons name="home-outline" color={color} size={size} />), }} />
+      <Tab.Screen 
+        name="HomeTab" 
+        component={HomeScreen} 
+        options={{ 
+          title: 'หน้าหลัก', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="home-outline" color={color} size={size} />), 
+        }} 
+      />
       
-      {/* ✅ FIX: ลบ MarketTab ออก เพื่อใช้ Tab Bar แบบเดิม */}
-      {/* <Tab.Screen name="MarketTab" component={MarketScreen} options={{ title: 'ตลาดลำไย', tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), }} /> */} 
-      
-      <Tab.Screen name="OffersTab" component={OffersScreen} options={{ title: 'ข้อเสนอ', tabBarIcon: ({ color, size }) => (<Ionicons name="chatbubbles-outline" color={color} size={size} />), }} />
+      <Tab.Screen 
+        name="OffersTab" 
+        component={OffersScreen} 
+        options={{ 
+          title: 'ข้อเสนอ', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="chatbubbles-outline" color={color} size={size} />), 
+        }} 
+      />
+
       <Tab.Screen
         name="PostTab"
         component={CreateListingScreen}
@@ -90,8 +102,24 @@ function MainAppTabs() {
           tabPress: (e) => { e.preventDefault(); navigation.navigate('CreateListing'); },
         })}
       />
-      <Tab.Screen name="NewsTab" component={NewsScreen} options={{ title: 'ข่าวสาร', tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'โปรไฟล์', tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), }} />
+
+      <Tab.Screen 
+        name="NewsTab" 
+        component={NewsScreen} 
+        options={{ 
+          title: 'ข่าวสาร', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), 
+        }} 
+      />
+
+      <Tab.Screen 
+        name="ProfileTab" 
+        component={ProfileScreen} 
+        options={{ 
+          title: 'โปรไฟล์', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), 
+        }} 
+      />
     </Tab.Navigator>
   );
 }
@@ -109,8 +137,27 @@ function BuyerAppTabs() {
         tabBarStyle: { height: Platform.OS === 'ios' ? 90 : 80, paddingBottom: Platform.OS === 'android' ? 10 : 0 }
       }}
     >
-      <Tab.Screen name="MarketTab" component={MarketScreen} options={{ title: 'ตลาดลำไย', tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), }} />
-      <Tab.Screen name="MyBidsTab" component={OffersScreen} options={{ title: 'รายการเจรจา', tabBarIcon: ({ color, size }) => (<Ionicons name="chatbox-ellipses-outline" color={color} size={size} />), }} />
+      <Tab.Screen 
+        name="MarketTab" 
+        component={MarketScreen} 
+        options={{ 
+          title: 'ตลาดลำไย', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="storefront-outline" color={color} size={size} />), 
+        }} 
+      />
+
+      {/* ✅ แก้ไขชื่อไอคอนที่นี่: ใช้ chatbubble-ellipses-outline (เอกพจน์) */}
+      <Tab.Screen 
+        name="MyBidsTab" 
+        component={OffersScreen} 
+        options={{ 
+            title: 'รายการเจรจา', 
+            tabBarIcon: ({ color, size }) => (
+                <Ionicons name="chatbubble-ellipses-outline" color={color} size={size} />
+            ), 
+        }} 
+      />
+      
       <Tab.Screen
         name="PostBidTab"
         component={CreateBidScreen}
@@ -124,8 +171,24 @@ function BuyerAppTabs() {
           tabPress: (e) => { e.preventDefault(); navigation.navigate('CreateBid'); },
         })}
       />
-      <Tab.Screen name="NewsTab" component={NewsScreen} options={{ title: 'ข่าวสาร', tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'โปรไฟล์', tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), }} />
+
+      <Tab.Screen 
+        name="NewsTab" 
+        component={NewsScreen} 
+        options={{ 
+          title: 'ข่าวสาร', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="newspaper-outline" color={color} size={size} />), 
+        }} 
+      />
+
+      <Tab.Screen 
+        name="ProfileTab" 
+        component={ProfileScreen} 
+        options={{ 
+          title: 'โปรไฟล์', 
+          tabBarIcon: ({ color, size }) => (<Ionicons name="person-outline" color={color} size={size} />), 
+        }} 
+      />
     </Tab.Navigator>
   );
 }
