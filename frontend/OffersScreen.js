@@ -14,16 +14,17 @@ const OfferItem = ({ item, navigation }) => {
   const getStatusStyle = (status) => {
     switch (status) {
       case 'open': return { color: '#FFB800', text: 'รอการตอบรับ' };
-      case 'negotiating': return { color: '#0D6EfD', text: 'กำลังต่อรอง' }; // เผื่อมีสถานะนี้
+      case 'negotiating': return { color: '#0D6EfD', text: 'กำลังต่อรอง' }; 
       case 'accepted': return { color: '#1E9E4F', text: 'ดีลสำเร็จ' };
+      case 'matched': return { color: '#1E9E4F', text: 'จับคู่สำเร็จ' };
       case 'rejected': return { color: '#D9534F', text: 'ปฏิเสธ' };
       case 'cancelled': return { color: '#666', text: 'ยกเลิก' };
       default: return { color: '#888', text: 'สถานะ: ' + status };
     }
   };
   
-  // ใช้ status จาก item เป็นหลัก 
-  const statusInfo = getStatusStyle(item.status || item.priceStatus); 
+  // ใช้ status เป็นหลัก
+  const statusInfo = getStatusStyle(item.status); 
   const offeredPrice = item.offeredPrice || item.requestedPrice || 0;
   
   let dateString = '...';
@@ -34,12 +35,12 @@ const OfferItem = ({ item, navigation }) => {
   }
 
   const handleViewDeal = () => {
-    // ส่งข้อมูลทั้ง negotiation และ id ไปยังหน้ารายละเอียด
+    // ส่งข้อมูลเพื่อเปิดหน้าเจรจา (View/Edit Mode)
     navigation.navigate('NegotiationDetail', { 
-        negotiation: item,
         negotiationId: item.id,
-        // ส่ง item ไปในชื่อ 'item' ด้วยเพื่อความชัวร์ (รองรับโค้ดเก่า)
-        item: item 
+        // ส่ง item เดิมไปด้วยเผื่อใช้แสดงผลเบื้องต้นระหว่างโหลด
+        item: item,
+        mode: 'view' // บอกปลายทางว่าเป็นโหมดดู/แก้ไข
     });
   };
 
@@ -47,15 +48,13 @@ const OfferItem = ({ item, navigation }) => {
     <TouchableOpacity style={styles.offerCard} onPress={handleViewDeal}>
       <View style={styles.cardHeader}>
         <Text style={styles.productName}>
-            {/* แสดงชื่อสินค้า หรือ Order ID */}
-            {item.grade ? `ลำไย เกรด ${item.grade}` : `Order #${item.orderId ? item.orderId.slice(-6) : '???'}`}
+            {/* แสดงชื่อสินค้า ถ้ามีเกรดให้แสดงเกรดด้วย */}
+            {item.itemName || item.plantType || 'สินค้าเกษตร'} {item.grade ? `(เกรด ${item.grade})` : ''}
         </Text>
-        {/* แสดงสถานะ: รอการตอบรับ, ดีลสำเร็จ, ปฏิเสธ */}
         <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.text}</Text>
       </View>
       
       <View style={styles.cardBody}>
-        {/* ✅ 1. แก้ไขการแสดงน้ำหนักให้มีตัวเลข */}
         <View style={styles.rowDetail}>
              <Ionicons name="scale-outline" size={16} color="#555" />
              <Text style={styles.detailText}> 
@@ -97,10 +96,8 @@ export default function OffersScreen({ navigation }) {
   const [allOffers, setAllOffers] = useState([]); 
   const [filteredOffers, setFilteredOffers] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null);
-  
-  const [counts, setCounts] = useState({ active: 0, accepted: 0, failed: 0 });
   const [filter, setFilter] = useState('active'); 
+  const [counts, setCounts] = useState({ active: 0, accepted: 0, failed: 0 });
   
   // ฟังก์ชันกรองข้อมูลและนับจำนวน
   const applyFiltersAndCounts = (offers, currentFilter) => {
@@ -116,14 +113,14 @@ export default function OffersScreen({ navigation }) {
           const status = item.status;
           
           // นับจำนวนในแต่ละหมวดหมู่
-          if (status === 'open' || status === 'negotiating') activeCount++;
-          if (status === 'accepted') acceptedCount++;
+          if (status === 'open' || status === 'negotiating' || status === 'pending') activeCount++;
+          if (status === 'accepted' || status === 'matched') acceptedCount++;
           if (status === 'rejected' || status === 'cancelled') failedCount++;
 
           // กรองรายการตาม Tab ที่เลือกอยู่
-          if (currentFilter === 'active' && (status === 'open' || status === 'negotiating')) {
+          if (currentFilter === 'active' && (status === 'open' || status === 'negotiating' || status === 'pending')) {
               finalFilteredItems.push(item);
-          } else if (currentFilter === 'accepted' && status === 'accepted') {
+          } else if (currentFilter === 'accepted' && (status === 'accepted' || status === 'matched')) {
               finalFilteredItems.push(item);
           } else if (currentFilter === 'failed' && (status === 'rejected' || status === 'cancelled')) {
               finalFilteredItems.push(item);
@@ -138,19 +135,20 @@ export default function OffersScreen({ navigation }) {
     setLoading(true);
     try {
       const userId = await AsyncStorage.getItem('userId');
-      const role = await AsyncStorage.getItem('userRole');
+      const role = await AsyncStorage.getItem('userRole'); // 'farmer' or 'buyer'
       
-      setUserRole(role); 
-
-      if (!userId || !role) {
+      if (!userId) {
         setLoading(false);
         return;
       }
       
+      // ✅ ใช้ buyerId ตามที่เราตกลงกัน (Backend Service ต้องบันทึกเป็น buyerId หรือมี query รองรับ)
       const baseFilter = role === 'farmer' ? `farmerId=${userId}` : `buyerId=${userId}`;
-      // ดึงข้อมูลทั้งหมด
+      
+      // ดึงข้อมูลทั้งหมด (ใช้ limit เยอะหน่อยเพื่อมา filter client-side)
       const url = `${API_BASE_URL}/orderApi/negotiations?${baseFilter}&limit=200`; 
       
+      console.log('Fetching Offers:', url); // Debug URL
       const response = await fetch(url);
       const result = await response.json();
       
@@ -183,13 +181,13 @@ export default function OffersScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea}>
       
-      {/* ✅ 2. แถบ Filter Tabs: กดตรงนี้เพื่อดูรายการ "ยอมรับ" หรือ "ปฏิเสธ" */}
+      {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         {
           [{ key: 'active', label: 'กำลังเจรจา', countKey: 'active' }, 
-            { key: 'accepted', label: 'ดีลสำเร็จ', countKey: 'accepted' }, 
-            { key: 'failed', label: 'ปฏิเสธ/ยกเลิก', countKey: 'failed' }]
-            .map((tab) => (
+           { key: 'accepted', label: 'ดีลสำเร็จ', countKey: 'accepted' }, 
+           { key: 'failed', label: 'จบการเจรจา', countKey: 'failed' }]
+           .map((tab) => (
                 <TouchableOpacity
                     key={tab.key}
                     style={[
@@ -218,9 +216,6 @@ export default function OffersScreen({ navigation }) {
           <View style={styles.emptyContainer}>
               <Ionicons name="chatbubbles-outline" size={80} color="#CCCCCC" />
               <Text style={styles.emptyText}>ไม่พบรายการในหมวดหมู่นี้</Text>
-              <Text style={styles.emptySubText}>
-                 ลองกดเปลี่ยนแท็บด้านบนเพื่อดูรายการอื่น ๆ
-              </Text>
               <TouchableOpacity onPress={fetchAllOffers} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>โหลดใหม่</Text>
               </TouchableOpacity>
@@ -244,28 +239,14 @@ const styles = StyleSheet.create({
   listContainer: { padding: 10, paddingBottom: 20 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 50 },
   emptyText: { fontSize: 18, fontWeight: 'bold', color: '#888', marginTop: 10, textAlign: 'center' },
-  emptySubText: { fontSize: 14, color: '#AAA', textAlign: 'center', marginTop: 5 },
   offerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderLeftWidth: 5,
-    borderLeftColor: '#1E9E4F', 
+    backgroundColor: '#FFFFFF', borderRadius: 12, padding: 15, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
+    borderLeftWidth: 5, borderLeftColor: '#1E9E4F', 
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
   productName: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   statusText: { fontSize: 14, fontWeight: 'bold' },
@@ -274,11 +255,8 @@ const styles = StyleSheet.create({
   detailText: { fontSize: 14, color: '#555', marginLeft: 6 },
   boldText: { fontWeight: '600', color: '#333' },
   cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: '#F0F0F0',
   },
   priceContainer: { flex: 1, alignItems: 'flex-start' },
   weightContainer: { flex: 1, alignItems: 'flex-end' },
@@ -287,42 +265,18 @@ const styles = StyleSheet.create({
   weightText: { fontSize: 12, color: '#888', marginTop: 5 },
   priceUnit: { fontSize: 12, color: '#888' },
   retryButton: {
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginTop: 15,
+    backgroundColor: '#E8F5E9', paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 20, marginTop: 15,
   },
-  retryButtonText: {
-    color: '#1E9E4F',
-    fontWeight: 'bold',
-  },
-  
-  // Styles สำหรับ Filter Tabs
+  retryButtonText: { color: '#1E9E4F', fontWeight: 'bold' },
   filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#FFFFFF',
+    padding: 8, borderBottomWidth: 1, borderBottomColor: '#E0E0E0',
   },
   filterButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginHorizontal: 4,
-    alignItems: 'center',
+    flex: 1, paddingVertical: 10, borderRadius: 20, marginHorizontal: 4, alignItems: 'center',
   },
-  filterButtonActive: {
-    backgroundColor: '#1E9E4F', 
-  },
-  filterButtonText: {
-    color: '#555',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  filterButtonTextActive: {
-    color: '#FFFFFF',
-  },
+  filterButtonActive: { backgroundColor: '#1E9E4F' },
+  filterButtonText: { color: '#555', fontWeight: '600', fontSize: 12 },
+  filterButtonTextActive: { color: '#FFFFFF' },
 });
