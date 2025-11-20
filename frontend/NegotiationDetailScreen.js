@@ -8,21 +8,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from './apiConfig';
+import { useNavigation } from '@react-navigation/native';
 
-export default function NegotiationDetailScreen({ route, navigation }) {
+export default function NegotiationDetailScreen({ route }) {
+  const navigation = useNavigation();
   const { negotiation, order, item } = route.params || {};
 
-  // เตรียมข้อมูลสำหรับแสดงผล
-  const negotiationData = negotiation || (item && (item.offeredPrice !== undefined || item.status === 'negotiating') ? item : null);
-  // ถ้าไม่มี negotiationData ให้ใช้ item เป็น productData
-  const productData = order || item || {};
+  // 1. เตรียมข้อมูล Negotiation
+  // ถ้ามี object 'negotiation' หรือ 'item' ที่มีสถานะเจรจา ให้ถือว่าเป็น negotiationData
+  const negotiationData = negotiation || (item && (item.offeredPrice !== undefined || item.status === 'negotiating' || item.status === 'accepted' || item.status === 'open') ? item : null);
+  
+  // 2. เตรียมข้อมูล Product (สินค้าต้นทาง)
+  // ถ้า negotiation มีข้อมูล order แนบมาด้วย (จาก backend ใหม่) ให้ใช้
+  // ถ้าไม่มี ให้ใช้ order หรือ item ที่ส่งมา
+  const productData = negotiationData?.order || order || item || {};
+  const orderType = productData.type || 'sell'; // เช็คว่าเป็นโพสต์ 'ขาย' หรือ 'รับซื้อ'
 
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserToken, setCurrentUserToken] = useState(null);
   const [userRole, setUserRole] = useState('');
 
-  // State สำหรับ Modal
+  // State Modal
   const [isOfferModalVisible, setIsOfferModalVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState(''); 
   const [offerPrice, setOfferPrice] = useState(''); 
@@ -57,6 +64,28 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         }
     }
   };
+
+  // ✅ Helper: ฟังก์ชันแปลงตัวเลขให้ชัวร์
+  const parseNumber = (val) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    return parseFloat(val.toString().replace(/,/g, '')) || 0;
+  };
+
+  // --- Logic การอนุญาตให้แก้ไขน้ำหนัก ---
+  const canEditAmount = () => {
+    // ถ้าเป็น Buyer และเป็นโพสต์ขาย (Sell) -> Buyer แก้ได้ (ซื้อบางส่วน)
+    if (userRole === 'buyer' && orderType === 'sell') return true;
+    
+    // ✅ แก้ไข: ถ้าเป็น Farmer และเป็นโพสต์รับซื้อ (Buy) -> ให้แก้ไขได้
+    // เพื่อแก้ปัญหาค่าไม่ขึ้น และรองรับกรณีเกษตรกรมีของขายน้อยกว่าที่รับซื้อ
+    if (userRole === 'farmer' && orderType === 'buy') return true; 
+
+    // กรณีอื่นๆ (เช่น Farmer แก้โพสต์ขายตัวเองระหว่างต่อรอง) ปกติจะไม่ได้
+    return false;
+  };
+  
+  const isAmountEditable = canEditAmount();
 
   // --- API Functions ---
 
@@ -93,12 +122,11 @@ export default function NegotiationDetailScreen({ route, navigation }) {
   const handleStartNegotiation = async () => {
     if (!currentUserId) { Alert.alert("ข้อผิดพลาด", "กรุณาเข้าสู่ระบบ"); return; }
     
-    // แปลงค่าและลบลูกน้ำ (,) ออกก่อนแปลงเป็นตัวเลข เพื่อป้องกัน error
-    const amount = parseFloat(offerAmount.replace(/,/g, ''));
-    const price = parseFloat(offerPrice.replace(/,/g, ''));
+    const amount = parseNumber(offerAmount);
+    const price = parseNumber(offerPrice);
     
-    if (isNaN(amount) || amount <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุน้ำหนักที่ถูกต้อง"); return; }
-    if (isNaN(price) || price <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุราคาที่ถูกต้อง"); return; }
+    if (amount <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุน้ำหนักที่ถูกต้อง"); return; }
+    if (price <= 0) { Alert.alert("แจ้งเตือน", "กรุณาระบุราคาที่ถูกต้อง"); return; }
 
     setLoading(true);
     setIsOfferModalVisible(false);
@@ -150,11 +178,41 @@ export default function NegotiationDetailScreen({ route, navigation }) {
     }
   };
 
+  const handleNegotiateAction = () => {
+    const currentPrice = displayData.price ? displayData.price.toString() : '';
+    
+    // ✅ ดึงค่า Amount มาใส่เสมอ
+    let currentAmount = displayData.amount ? displayData.amount.toString() : '';
+    
+    // ถ้าค่าเป็น 0 หรือว่าง หรือ undefined ให้ดึงจาก Max Amount (ของที่มีทั้งหมด) มาใส่แทน
+    if (!currentAmount || currentAmount === '0' || currentAmount === 'undefined') {
+         currentAmount = displayData.maxAmount ? displayData.maxAmount.toString() : '';
+    }
+
+    // Fallback สุดท้าย: ดึงจาก productData โดยตรงเผื่อ displayData ยังไม่ update
+    if (!currentAmount || currentAmount === '0') {
+        const directAmount = productData.amountKg || productData.amount;
+        if (directAmount) currentAmount = directAmount.toString();
+    }
+    
+    setOfferPrice(currentPrice);
+    setOfferAmount(currentAmount);
+    setIsOfferModalVisible(true);
+  };
+
   const handleAcceptOffer = () => {
-    Alert.alert("ยืนยันดีล", "เมื่อกดยืนยัน ดีลจะเสร็จสมบูรณ์ทันที", [
-      { text: "ยกเลิก", style: "cancel" },
-      { text: "ยืนยัน", onPress: () => updateNegotiationStatus('accepted') }
-    ]);
+    const finalAmount = displayData.amount;
+    const finalPrice = displayData.price;
+    const total = (finalAmount * finalPrice).toLocaleString();
+
+    Alert.alert(
+        "ยืนยันดีล", 
+        `ตกลงซื้อขายที่:\nน้ำหนัก ${finalAmount.toLocaleString()} กก.\nราคา ${finalPrice} บาท/กก.\nรวมเป็นเงิน ${total} บาท\n\n(ระบบจะตัดยอดสินค้าและสร้างรายการใหม่สำหรับส่วนที่เหลือ)`, 
+        [
+            { text: "ยกเลิก", style: "cancel" },
+            { text: "ยืนยัน", onPress: () => updateNegotiationStatus('accepted') }
+        ]
+    );
   };
 
   const handleRejectOffer = () => {
@@ -164,52 +222,54 @@ export default function NegotiationDetailScreen({ route, navigation }) {
     ]);
   };
 
-  const handleNegotiateAction = () => {
-    // ดึงค่าปัจจุบันมาใส่ใน Modal (ถ้าเป็น 0 ให้ว่างไว้)
-    const currentPrice = displayData.price ? displayData.price.toString() : '';
-    const currentAmount = displayData.amount ? displayData.amount.toString() : '';
-    
-    setOfferPrice(currentPrice);
-    setOfferAmount(currentAmount);
-    setIsOfferModalVisible(true);
-  };
-
-  // ✅ จุดที่แก้ไข: ปรับปรุง logic การแสดงผลให้ดึงค่าจาก productData ถ้า negotiationData เป็น 0
+  // ✅ Logic การแสดงผลที่ปรับปรุงแล้ว
   const getDisplayData = () => {
-    if (negotiationData) {
-        const isMyTurn = negotiationData.actorId !== currentUserId; 
-        
-        // Logic: ลองดึงค่าจากดีล (negotiation) ก่อน -> ถ้าไม่มี/เป็น 0 -> ไปดึงจากสินค้า (productData)
-        let showAmount = negotiationData.amountKg || negotiationData.amount;
-        if (!showAmount || showAmount === 0) {
-            showAmount = productData.amountKg || productData.amount || 0;
-        }
+    // 1. ดึงค่าตั้งต้นจากสินค้า (Order Original) ก่อน
+    const originalAmount = parseNumber(productData.amountKg || productData.amount);
+    const originalPrice = parseNumber(productData.requestedPrice || productData.price);
 
-        let showPrice = negotiationData.offeredPrice ?? negotiationData.price;
-        if (!showPrice || showPrice === 0) {
-             showPrice = productData.requestedPrice || productData.price || 0;
-        }
+    if (negotiationData && negotiationData.id) {
+        // --- กรณีมีดีลแล้ว ---
+        const isMyTurn = negotiationData.lastSide ? (
+            (userRole === 'farmer' && negotiationData.lastSide === 'factory') || 
+            (userRole === 'buyer' && negotiationData.lastSide === 'farmer')
+        ) : false;
+
+        // ดึงค่าจาก Negotiation เป็นหลัก
+        let dealAmount = parseNumber(negotiationData.amountKg || negotiationData.amount);
+        let dealPrice = parseNumber(negotiationData.offeredPrice ?? negotiationData.price);
+        
+        // ✅ Fallback: ถ้าค่าใน negotiation เป็น 0 (ผิดพลาด) ให้กลับไปใช้ค่า original
+        if (dealAmount === 0) dealAmount = originalAmount;
+        if (dealPrice === 0) dealPrice = originalPrice;
 
         return {
-            title: isMyTurn ? `ข้อเสนอจาก ${negotiationData.negotiatorName || 'คู่ค้า'}` : 'ข้อเสนอของคุณ',
+            title: isMyTurn ? `ข้อเสนอจาก ${negotiationData.negotiatorName || 'คู่ค้า'}` : 'รายละเอียดการเจรจา',
             status: negotiationData.status || 'กำลังเจรจา',
-            price: showPrice,
-            amount: showAmount,
+            price: dealPrice,
+            amount: dealAmount,
+            maxAmount: originalAmount, // ส่งค่า Max ไปแสดงผลด้วย
             isNegotiation: true,
-            isDecisionMaker: isMyTurn
+            isDecisionMaker: isMyTurn,
+            negotiatorName: negotiationData.negotiatorName
         };
     } else {
+        // --- กรณีเริ่มดีลใหม่ ---
         return {
             title: 'รายละเอียดสินค้า',
             status: 'รอข้อเสนอ',
-            price: productData.requestedPrice || productData.price || 0,
-            amount: productData.amountKg || productData.amount || 0,
+            price: originalPrice,
+            amount: originalAmount,
+            maxAmount: originalAmount,
             isNegotiation: false,
-            isDecisionMaker: false
+            isDecisionMaker: false,
+            negotiatorName: '-'
         };
     }
   };
+  
   const displayData = getDisplayData();
+  const totalValue = displayData.amount * displayData.price;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -226,31 +286,45 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         </View>
 
         <View style={styles.card}>
+             {/* แสดง Stock คงเหลือ ถ้ากำลังเจรจา */}
+             {displayData.isNegotiation && (
+                 <View style={styles.stockInfo}>
+                     <Text style={styles.stockText}>
+                        สินค้าทั้งหมดในล็อตนี้: {displayData.maxAmount.toLocaleString()} กก.
+                     </Text>
+                 </View>
+             )}
+
              <View style={styles.cardRow}>
                  <View style={{flex:1, alignItems:'center'}}>
-                    <Text style={styles.label}>ราคา (บาท/กก.)</Text>
-                    <Text style={styles.value}>{Number(displayData.price).toFixed(2)}</Text>
+                    <Text style={styles.label}>ราคาเสนอ (บาท/กก.)</Text>
+                    <Text style={[styles.value, {color:'#1E9E4F'}]}>{Number(displayData.price).toFixed(2)}</Text>
                  </View>
                  <View style={{width:1, height:40, backgroundColor:'#EEE'}} />
                  <View style={{flex:1, alignItems:'center'}}>
-                    <Text style={styles.label}>ปริมาณ (กก.)</Text>
-                    {/* เพิ่ม toLocaleString() เพื่อให้มีลูกน้ำคั่นหลักพัน */}
+                    <Text style={styles.label}>ปริมาณที่ซื้อขาย (กก.)</Text>
                     <Text style={styles.value}>{Number(displayData.amount).toLocaleString()}</Text>
                  </View>
              </View>
              <View style={styles.divider} />
              <View style={{flexDirection:'row', justifyContent:'space-between'}}>
                  <Text style={styles.totalLabel}>รวมเป็นเงินทั้งสิ้น</Text>
-                 <Text style={styles.totalValue}>{(Number(displayData.amount) * Number(displayData.price)).toLocaleString()} บาท</Text>
+                 <Text style={styles.totalValue}>{totalValue.toLocaleString()} บาท</Text>
              </View>
         </View>
 
         <View style={styles.section}>
             <Text style={styles.sectionTitle}>รายละเอียดเพิ่มเติม</Text>
-            <Text style={styles.description}>{productData.details || "ไม่มีรายละเอียด"}</Text>
+            <Text style={styles.description}>{productData.details || "ไม่มีรายละเอียดเพิ่มเติม"}</Text>
             <View style={styles.locationRow}>
                 <Ionicons name="location-sharp" size={16} color="#666"/>
-                <Text style={{marginLeft:5, color:'#666'}}>{productData.province || '-'}</Text>
+                <Text style={{marginLeft:5, color:'#666'}}>
+                    {productData.province} {productData.amphoe ? ` - ${productData.amphoe}` : ''}
+                </Text>
+            </View>
+            <View style={styles.gradeRow}>
+                 <Text style={{color:'#888'}}>เกรดสินค้า: </Text>
+                 <Text style={{fontWeight:'bold'}}>{productData.grade || '-'}</Text>
             </View>
         </View>
 
@@ -259,20 +333,20 @@ export default function NegotiationDetailScreen({ route, navigation }) {
       <View style={styles.footer}>
         {loading ? <ActivityIndicator size="small" color="#1E9E4F" /> : (
             <>
-             {displayData.isNegotiation && displayData.status !== 'accepted' && displayData.status !== 'rejected' && displayData.isDecisionMaker ? (
+             {displayData.isNegotiation && displayData.status === 'open' && displayData.isDecisionMaker ? (
                  <View style={styles.btnRow}>
                      <TouchableOpacity style={[styles.btn, styles.btnAccept]} onPress={handleAcceptOffer}>
-                         <Ionicons name="checkmark" size={20} color="#FFF"/>
-                         <Text style={styles.btnText}>ยอมรับ</Text>
+                         <Ionicons name="checkmark-circle" size={20} color="#FFF"/>
+                         <Text style={styles.btnText}>ยอมรับดีล</Text>
                      </TouchableOpacity>
 
                      <TouchableOpacity style={[styles.btn, styles.btnNego]} onPress={handleNegotiateAction}>
-                         <Ionicons name="swap-horizontal" size={20} color="#FFF"/>
+                         <Ionicons name="create-outline" size={20} color="#FFF"/>
                          <Text style={styles.btnText}>ต่อรอง</Text>
                      </TouchableOpacity>
                      
                      <TouchableOpacity style={[styles.btn, styles.btnReject]} onPress={handleRejectOffer}>
-                         <Ionicons name="close" size={20} color="#D32F2F"/>
+                         <Ionicons name="close-circle" size={20} color="#D32F2F"/>
                          <Text style={[styles.btnText, {color:'#D32F2F'}]}>ปฏิเสธ</Text>
                      </TouchableOpacity>
                  </View>
@@ -286,20 +360,19 @@ export default function NegotiationDetailScreen({ route, navigation }) {
                             </Text>
                          </TouchableOpacity>
                      ) : (
-                        // เช็คว่าดีลจบหรือยัง
-                        (displayData.status === 'accepted' || displayData.status === 'rejected') ? (
-                             <View style={[styles.waitingBox, {backgroundColor: displayData.status === 'accepted' ? '#E8F5E9' : '#FFEBEE'}]}>
-                                 <Ionicons name={displayData.status === 'accepted' ? "checkmark-circle" : "close-circle"} size={24} color={displayData.status === 'accepted' ? "#4CAF50" : "#D32F2F"} />
-                                 <Text style={{color: displayData.status === 'accepted' ? "#4CAF50" : "#D32F2F", marginLeft:10, fontWeight:'bold'}}>
-                                    {displayData.status === 'accepted' ? 'การเจรจาสำเร็จ' : 'การเจรจาถูกปฏิเสธ'}
-                                 </Text>
-                             </View>
-                        ) : (
-                             <View style={styles.waitingBox}>
-                                 <Ionicons name="time-outline" size={24} color="#888" />
-                                 <Text style={{color:'#666', marginLeft:10}}>รอการตอบรับจากอีกฝ่าย...</Text>
-                             </View>
-                        )
+                        <View style={styles.waitingBox}>
+                             {displayData.status === 'accepted' || displayData.status === 'matched' ? (
+                                 <View style={{flexDirection:'row', alignItems:'center'}}>
+                                     <Ionicons name="checkmark-done-circle" size={24} color="#4CAF50" />
+                                     <Text style={{color:'#4CAF50', fontWeight:'bold', marginLeft:8}}>การซื้อขายสำเร็จ</Text>
+                                 </View>
+                             ) : (
+                                 <View style={{flexDirection:'row', alignItems:'center'}}>
+                                     <Ionicons name="time-outline" size={24} color="#888" />
+                                     <Text style={{color:'#666', marginLeft:8}}>รอการตอบรับจากอีกฝ่าย...</Text>
+                                 </View>
+                             )}
+                        </View>
                      )}
                  </View>
              )}
@@ -307,21 +380,31 @@ export default function NegotiationDetailScreen({ route, navigation }) {
         )}
       </View>
 
+      {/* Modal */}
       <Modal visible={isOfferModalVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>ยื่นข้อเสนอใหม่</Text>
+                  <Text style={styles.modalTitle}>
+                      {userRole === 'farmer' ? 'เสนอราคาขาย' : 'เสนอราคาซื้อ'}
+                  </Text>
                   
-                  <Text style={styles.inputLabel}>ปริมาณ (กก.):</Text>
+                  {/* แสดงน้ำหนักที่มีทั้งหมดใน Modal */}
+                  <Text style={styles.stockHint}>
+                      (สินค้าทั้งหมดที่มี: {displayData.maxAmount.toLocaleString()} กก.)
+                  </Text>
+
+                  <Text style={styles.inputLabel}>ปริมาณที่ต้องการ (กก.):</Text>
                   <TextInput 
-                    style={[styles.input, userRole !== 'buyer' && styles.disabledInput]} 
+                    style={[styles.input, !isAmountEditable && styles.disabledInput]} 
                     value={offerAmount} 
                     onChangeText={setOfferAmount} 
                     keyboardType="numeric"
-                    editable={userRole === 'buyer'}
+                    editable={isAmountEditable} 
                     placeholder="ระบุน้ำหนัก"
                   />
-                  {userRole !== 'buyer' && <Text style={styles.hint}>*เกษตรกรแก้ไขปริมาณไม่ได้</Text>}
+                  {!isAmountEditable && (
+                      <Text style={styles.hint}>*น้ำหนักถูกกำหนดไว้แล้ว (แก้ไขไม่ได้)</Text>
+                  )}
 
                   <Text style={styles.inputLabel}>ราคา (บาท/กก.):</Text>
                   <TextInput 
@@ -337,7 +420,7 @@ export default function NegotiationDetailScreen({ route, navigation }) {
                           <Text>ยกเลิก</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.modalConfirm} onPress={handleStartNegotiation}>
-                          <Text style={{color:'#FFF', fontWeight:'bold'}}>ส่งข้อเสนอ</Text>
+                          <Text style={{color:'#FFF', fontWeight:'bold'}}>ยืนยัน</Text>
                       </TouchableOpacity>
                   </View>
               </View>
@@ -353,28 +436,32 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 10, color: '#333' },
   statusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   card: { backgroundColor: '#FFF', margin: 15, padding: 20, borderRadius: 15, elevation: 2 },
+  stockInfo: { backgroundColor: '#F0F8FF', padding: 8, borderRadius: 5, marginBottom: 15, alignItems: 'center' },
+  stockText: { color: '#0056b3', fontSize: 12, fontWeight: 'bold' },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between' },
   label: { fontSize: 12, color: '#888', marginBottom: 5 },
-  value: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  value: { fontSize: 22, fontWeight: 'bold', color: '#333' },
   divider: { height: 1, backgroundColor: '#EEE', marginVertical: 15 },
   totalLabel: { fontSize: 14, color: '#555' },
-  totalValue: { fontSize: 16, fontWeight: 'bold', color: '#1E9E4F' },
-  section: { backgroundColor: '#FFF', marginHorizontal: 15, padding: 20, borderRadius: 15 },
+  totalValue: { fontSize: 18, fontWeight: 'bold', color: '#1E9E4F' },
+  section: { backgroundColor: '#FFF', marginHorizontal: 15, padding: 20, borderRadius: 15, marginBottom: 20 },
   sectionTitle: { fontWeight: 'bold', marginBottom: 10, color: '#333' },
   description: { fontSize: 14, color: '#555', lineHeight: 22 },
   locationRow: { flexDirection: 'row', marginTop: 10, alignItems: 'center' },
+  gradeRow: { flexDirection: 'row', marginTop: 5, alignItems: 'center' },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 20, borderTopLeftRadius: 20, borderTopRightRadius: 20, elevation: 10 },
-  btnRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  btn: { flex: 1, flexDirection: 'row', padding: 12, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  btnRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  btn: { flex: 1, flexDirection: 'row', paddingVertical: 12, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   btnAccept: { backgroundColor: '#4CAF50' },
   btnNego: { backgroundColor: '#2196F3' },
-  btnReject: { backgroundColor: '#FFEBEE', borderWidth: 1, borderColor: '#FFCDD2' },
+  btnReject: { backgroundColor: '#FFEBEE', borderWidth: 1, borderColor: '#EF9A9A' },
   btnFull: { backgroundColor: '#1E9E4F', width: '100%' },
-  btnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 5 },
+  btnText: { color: '#FFF', fontWeight: 'bold', marginLeft: 5, fontSize: 13 },
   waitingBox: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 15, backgroundColor: '#F5F5F5', borderRadius: 10 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '85%', backgroundColor: '#FFF', padding: 25, borderRadius: 15, elevation: 5 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
+  stockHint: { textAlign: 'center', color: '#666', fontSize: 12, marginBottom: 15 },
   inputLabel: { fontWeight: 'bold', marginTop: 10, marginBottom: 5 },
   input: { borderWidth: 1, borderColor: '#DDD', padding: 12, borderRadius: 8, fontSize: 16, backgroundColor: '#FAFAFA' },
   disabledInput: { backgroundColor: '#EEE', color: '#AAA' },
@@ -382,4 +469,4 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', marginTop: 25, justifyContent: 'space-between' },
   modalCancel: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#EEE', borderRadius: 8, marginRight: 10 },
   modalConfirm: { flex: 1, padding: 12, alignItems: 'center', backgroundColor: '#1E9E4F', borderRadius: 8 }
-})
+});

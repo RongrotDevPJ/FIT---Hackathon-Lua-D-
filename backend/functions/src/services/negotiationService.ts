@@ -266,20 +266,58 @@ export async function updateNegotiationStatus(opts: {
   const negoRef = db.collection(NEGOS_COL).doc(negotiationId);
   batch.set(negoRef, updatePayload, { merge: true }); 
 
-  // ถ้า accept → ปิดดีล + เซ็ต finalPrice + อัปเดต order
+  // ถ้า accept → ปิดดีล + เซ็ต finalPrice + อัปเดต order + (NEW) แบ่ง Order หากขายไม่หมด
   if (action === "accepted") {
     const orderRef = db.collection(ORDERS_COL).doc(data.orderId);
+    
+    // 1. ดึงข้อมูล Order ต้นฉบับเพื่อตรวจสอบปริมาณที่มีอยู่จริง
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) {
+        throw new Error("Order not found when accepting negotiation");
+    }
+    
+    const orderData = orderSnap.data() as Order;
+    const originalAmount = orderData.amountKg;       // ปริมาณที่มีอยู่เดิม (เช่น 100kg)
+    const negotiatedAmount = data.amountKg;          // ปริมาณที่ตกลงซื้อขายในดีลนี้ (เช่น 25kg)
+
+    // 2. อัปเดต Order เดิมให้สถานะเป็น Matched และปรับยอดให้ตรงกับที่ขายได้จริง
     batch.set(
       orderRef,
       {
         status: "matched",
         matchedAt: nowDate,
         finalPrice: data.offeredPrice ?? null,
-        // ✅ [NEW] อัปเดต amountKg ใน Order ด้วยปริมาณที่ตกลงกัน
-        amountKg: data.amountKg, 
+        amountKg: negotiatedAmount, // ปรับตัวเลขให้เหลือเท่าที่ขายได้ (25kg)
       } as any,
       { merge: true }
     );
+
+    // 3. ตรวจสอบส่วนต่าง ถ้ายังมีของเหลือ ให้สร้าง Order ใหม่ (Split Order)
+    if (originalAmount > negotiatedAmount) {
+        const remainingAmount = originalAmount - negotiatedAmount; // ส่วนที่เหลือ (75kg)
+        
+        // สร้าง Reference ID สำหรับ Order ใหม่
+        const newOrderRef = db.collection(ORDERS_COL).doc();
+
+        // เตรียมข้อมูล: คัดลอกข้อมูลจาก Order เดิม แต่ลบค่า field ที่เป็นของ Order ที่ปิดไปแล้ว
+        const baseOrderData = { ...orderData } as any;
+        delete baseOrderData.id;
+        delete baseOrderData.matchedAt;
+        delete baseOrderData.finalPrice;
+        delete baseOrderData.createdAt; 
+        delete baseOrderData.updatedAt;
+
+        // สร้างข้อมูล Order ใหม่สำหรับส่วนที่เหลือ
+        const newOrderPayload = {
+            ...baseOrderData,
+            amountKg: remainingAmount, // ระบุปริมาณที่เหลือ
+            status: "open",            // เปิดขายต่อทันที
+            createdAt: nowDate,        // รีเซ็ตเวลาสร้างเป็นปัจจุบัน
+            updatedAt: nowDate,
+        };
+
+        batch.set(newOrderRef, newOrderPayload);
+    }
   }
 
   await batch.commit();
